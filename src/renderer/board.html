@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>glassboard</title>
+  <link rel="stylesheet" href="board.css" />
+</head>
+<body>
+  <!-- Only present in wallpaper mode: the base image we composite the card onto. -->
+  <img id="bg" alt="" />
+
+  <div id="stage">
+    <section id="card">
+      <header>
+        <span class="brand">GLASSBOARD</span>
+        <span class="date" id="date"></span>
+      </header>
+
+      <ul id="notes"></ul>
+
+      <p id="empty">Nothing on the board.</p>
+      <footer id="foot"></footer>
+    </section>
+  </div>
+
+  <!-- board.ts imports its types, so tsc marks it a module and emits a
+       CommonJS `exports` reference. ES modules would avoid this but are
+       CORS-blocked over file://, which is how Electron loads this page.
+       This shim is cheaper than duplicating the type definitions. -->
+  <script>var exports = {}, module = { exports: exports };</script>
+  <script src="board.js"></script>
+</body>
+</html>
