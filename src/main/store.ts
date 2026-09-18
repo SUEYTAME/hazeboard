@@ -140,7 +140,11 @@ export function load(): BoardState {
 
   const raw = fs.readFileSync(file, 'utf8');
   const parsed = JSON.parse(raw) as LegacyState;
-  return migrate(parsed);
+  const state = migrate(parsed);
+  // A v1 file gets fresh card ids on every load until something saves. Persist
+  // the migration at once so `board cards` and `board rmcard` see stable ids.
+  if (!Array.isArray(parsed.cards)) save(state);
+  return state;
 }
 
 export function save(state: BoardState): void {
@@ -199,11 +203,23 @@ function pruneEmpty(state: BoardState): void {
   state.cards = state.cards.filter((c) => c.notes.length > 0);
 }
 
-/** Stagger new cards so a run of them cannot stack into one illegible pile. */
+/**
+ * Stagger new cards so a run of them cannot stack into one illegible pile.
+ * Slots already taken by a card (within a step of it) are skipped, otherwise
+ * the first card added after a migration lands exactly on the migrated one.
+ */
 function nextPosition(state: BoardState): { x: number; y: number } {
   const step = 0.04;
-  const n = state.cards.length;
-  return { x: clamp01(0.62 + (n % 4) * step), y: clamp01(0.18 + (n % 6) * step) };
+  const slot = (k: number): { x: number; y: number } =>
+    ({ x: clamp01(0.62 + (k % 4) * step), y: clamp01(0.18 + (k % 6) * step) });
+  const taken = (p: { x: number; y: number }): boolean =>
+    state.cards.some((c) => Math.abs(c.x - p.x) < step && Math.abs(c.y - p.y) < step);
+
+  for (let k = state.cards.length; k < state.cards.length + 24; k++) {
+    const p = slot(k);
+    if (!taken(p)) return p;
+  }
+  return slot(state.cards.length);
 }
 
 /* ------------------------------------------------------------------ *

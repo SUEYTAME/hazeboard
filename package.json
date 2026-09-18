@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json && node scripts/copy-assets.js",
     "watch": "tsc -p tsconfig.json --watch",
     "start": "npm run build && electron .",
-    "board": "node scripts/board.js"
+    "board": "node scripts/board.js",
+    "check": "node scripts/check-overlay.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -14,10 +14,12 @@ function argv(): string[] {
 const USAGE = `
 glassboard - a whiteboard baked into your desktop wallpaper
 
-  board add <text>       add a note and refresh the wallpaper
-  board list             list notes with their ids
+  board add <text>       add a note to the first card and refresh the wallpaper
+  board list             list every card and its notes, with ids
+  board cards            list cards with their positions
   board done <id>        toggle a note done/undone
-  board rm <id>          delete a note
+  board rm <id>          delete a note (an emptied card disappears)
+  board rmcard <id>      delete a whole card
   board clear            delete all completed notes
   board base <path>      set the wallpaper image the card sits on
   board base --show      show the remembered base image
@@ -30,23 +32,40 @@ glassboard - a whiteboard baked into your desktop wallpaper
 ids may be shortened as long as they stay unambiguous.
 `.trim();
 
-function printNotes(): void {
-  const { notes } = store.load();
-  if (notes.length === 0) {
+function printBoard(): void {
+  const state = store.load();
+  if (state.cards.length === 0) {
     console.log('(board is empty)');
     return;
   }
-  for (const n of notes) {
-    console.log(`  ${n.done ? '[x]' : '[ ]'} ${n.id}  ${n.text}`);
-  }
+  state.cards.forEach((card, i) => {
+    if (i > 0) console.log('');
+    console.log(`  card ${card.id}${card.title ? `  ${card.title}` : ''}`);
+    for (const n of card.notes) {
+      console.log(`    ${n.done ? '[x]' : '[ ]'} ${n.id}  ${n.text}`);
+    }
+  });
+  const notes = store.allNotes(state);
   const open = notes.filter((n) => !n.done).length;
-  console.log(`\n  ${open} open, ${notes.length} total`);
+  console.log(`\n  ${open} open, ${notes.length} total, ${state.cards.length} card(s)`);
+}
+
+function printCards(): void {
+  const { cards } = store.load();
+  if (cards.length === 0) {
+    console.log('(board is empty)');
+    return;
+  }
+  for (const c of cards) {
+    const pos = `x ${c.x.toFixed(2)}  y ${c.y.toFixed(2)}`;
+    console.log(`  ${c.id}  ${pos}  ${c.notes.length} note(s)${c.title ? `  ${c.title}` : ''}`);
+  }
 }
 
 async function refresh(): Promise<void> {
   const r = await composeAndApply();
   console.log(
-    `wallpaper updated: ${r.widthPx}x${r.heightPx}, ${r.noteCount} note(s)\n` +
+    `wallpaper updated: ${r.widthPx}x${r.heightPx}, ${r.cardCount} card(s), ${r.noteCount} note(s)\n` +
     `  base:   ${r.basePath}\n` +
     `  output: ${r.imagePath}`
   );
@@ -58,14 +77,24 @@ async function runCommand(args: string[]): Promise<void> {
   switch (cmd) {
     case 'add': {
       const text = rest.join(' ');
-      const note = store.addNote(text);
-      console.log(`added ${note.id}: ${note.text}`);
+      const { card, note } = store.addNote(text);
+      console.log(`added ${note.id} to card ${card.id}: ${note.text}`);
       await refresh();
       break;
     }
     case 'list':
-      printNotes();
+      printBoard();
       break;
+    case 'cards':
+      printCards();
+      break;
+    case 'rmcard': {
+      if (!rest[0]) throw new Error('usage: board rmcard <id>');
+      const c = store.removeCard(rest[0]);
+      console.log(`removed card ${c.id} (${c.notes.length} note(s))`);
+      await refresh();
+      break;
+    }
 
     case 'done': {
       if (!rest[0]) throw new Error('usage: board done <id>');

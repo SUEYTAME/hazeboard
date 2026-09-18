@@ -3,31 +3,37 @@
 <head>
   <meta charset="utf-8" />
   <title>glassboard</title>
+  <link rel="stylesheet" href="card.css" />
   <link rel="stylesheet" href="board.css" />
 </head>
-<body>
-  <!-- Only present in wallpaper mode: the base image we composite the card onto. -->
+<body class="mode-wallpaper">
+  <!-- The base image we composite the card onto, offset so the pixels behind
+       the card are the real wallpaper pixels. -->
   <img id="bg" alt="" />
 
-  <div id="stage">
-    <section id="card">
-      <header>
-        <span class="brand">GLASSBOARD</span>
-        <span class="date" id="date"></span>
-      </header>
+  <div id="stage"></div>
 
-      <ul id="notes"></ul>
-
-      <p id="empty">Nothing on the board.</p>
-      <footer id="foot"></footer>
-    </section>
-  </div>
-
-  <!-- board.ts imports its types, so tsc marks it a module and emits a
-       CommonJS `exports` reference. ES modules would avoid this but are
-       CORS-blocked over file://, which is how Electron loads this page.
-       This shim is cheaper than duplicating the type definitions. -->
-  <script>var exports = {}, module = { exports: exports };</script>
+  <!-- tsc emits CommonJS (require/exports) and ES modules are CORS-blocked
+       over file://, which is how Electron loads this page. scripts/copy-assets
+       wraps each module as __define(name, factory) so it gets its own scope,
+       and this loader resolves require() by basename. The shared modules are
+       the same source the main process uses, not copies of the logic. -->
+  <script>
+    var __modules = {};
+    function __define(name, factory) {
+      var module = { exports: {} };
+      factory(require, module.exports, module);
+      __modules[name] = module.exports;
+    }
+    function require(name) {
+      var m = __modules[name.replace(/^.*\//, '')];
+      if (!m) throw new Error('module not loaded: ' + name);
+      return m;
+    }
+  </script>
+  <script src="types.js"></script>
+  <script src="layout.js"></script>
+  <script src="card.js"></script>
   <script src="board.js"></script>
 </body>
 </html>

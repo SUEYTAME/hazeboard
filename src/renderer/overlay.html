@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>glassboard overlay</title>
+  <link rel="stylesheet" href="card.css" />
+  <link rel="stylesheet" href="overlay.css" />
+</head>
+<body>
+  <!-- Frozen capture of the desktop, blurred. Frozen rather than live on
+       purpose: Windows acrylic gives no control over radius, saturation or
+       contrast, and per-note contrast is the whole point. -->
+  <img id="shot" alt="" />
+  <div id="dim"></div>
+
+  <div id="field"></div>
+
+  <div id="newcard">
+    <input type="text" placeholder="New card..." autocomplete="off" spellcheck="false" />
+  </div>
+
+  <div id="hint"></div>
+
+  <div id="popover" hidden>
+    <div class="swatches"></div>
+    <label class="intensity">
+      <span>contrast</span>
+      <input type="range" min="0" max="1" step="0.02" />
+    </label>
+  </div>
+
+  <!-- Same loader as board.html: scripts/copy-assets wraps each module as
+       __define(name, factory) so tsc's CommonJS output gets its own scope. -->
+  <script>
+    var __modules = {};
+    function __define(name, factory) {
+      var module = { exports: {} };
+      factory(require, module.exports, module);
+      __modules[name] = module.exports;
+    }
+    function require(name) {
+      var m = __modules[name.replace(/^.*\//, '')];
+      if (!m) throw new Error('module not loaded: ' + name);
+      return m;
+    }
+  </script>
+  <script src="types.js"></script>
+  <script src="layout.js"></script>
+  <script src="footer.js"></script>
+  <script src="card.js"></script>
+  <script src="overlay.js"></script>
+</body>
+</html>

@@ -32,14 +32,16 @@ npm run build
 Drive it from the command line:
 
 ```
-npm run board -- add "call the bank"
-npm run board -- list
-npm run board -- done 4f98        # ids may be shortened
+npm run board -- add "call the bank"   # appends to the first card
+npm run board -- list                  # every card and its notes, with ids
+npm run board -- cards                 # cards with their positions
+npm run board -- done 4f98             # ids may be shortened
 npm run board -- rm 4f98
-npm run board -- clear            # drop completed notes
+npm run board -- rmcard c982
+npm run board -- clear                 # drop completed notes
 npm run board -- base "C:/Users/you/Pictures/wallpaper.jpg"
 npm run board -- refresh
-npm run board -- preview          # render a PNG without touching the desktop
+npm run board -- preview               # render a PNG without touching the desktop
 ```
 
 …or run it as an app:
@@ -49,10 +51,26 @@ npm start
 ```
 
 That puts a tray icon in the notification area. Click it (or press
-**Ctrl+Alt+W**) to open the board. Click a note to tick it off; **hold** a note
-for half a second to enter edit mode, where each note grows a delete badge and
-the rows wiggle, iOS-style. Esc leaves edit mode; Esc again closes the board.
-The wallpaper is re-baked when the board closes.
+**Ctrl+Alt+W**) and the whole screen becomes the board: a frozen capture of
+your desktop, blurred, with every card floating over it where it sits in the
+wallpaper. It is iOS "jiggle to arrange" applied to the whole screen:
+
+- **Click** a note to tick it off. **Right-click** it for a colour.
+- **Hold** a note or a card for half a second and the board flips into jiggle
+  mode, picking that item up. From then on things drag on movement.
+- **Drag a card** anywhere. Positions are stored as fractions of the screen,
+  so a resolution change moves cards proportionally instead of off-screen.
+- **Drag a note** within its card to reorder it, onto another card to move it
+  there, or into empty space to make it a card of its own. A card whose last
+  note leaves disappears, like an emptied iOS folder.
+- In jiggle mode each note has a **× badge** and a **colour dot**; the dot
+  opens a popover with ten tints and a contrast slider. Colour is per note.
+- Type into a card's composer to add to it, or into **New card…** at the
+  bottom to start one.
+- **Esc** closes the popover, then leaves jiggle mode, then closes the board.
+
+The wallpaper is re-baked when the board closes, so the cards you arranged
+are exactly where you left them once the overlay is gone.
 
 ```
 npm run board -- autostart on
@@ -90,16 +108,53 @@ Each of these cost real debugging time and is easy to trip over again:
 - **Destroying the render window fires `window-all-closed`.** Wiring that to
   `app.exit()` kills the process mid-await, so the wallpaper never gets set —
   and because it's a race, it appears to work about half the time.
+- **Cards are baked one at a time, in two passes each.** The window clamp
+  above means one render cannot span the wallpaper, and text wrapping means a
+  card's height cannot be predicted from its note count: pass 1 lays the card
+  out in a full-height window purely to measure it, pass 2 shrink-wraps the
+  window and captures. The page refuses to resolve until `innerWidth` and
+  `innerHeight` actually match the requested region, because `setContentSize`
+  returns long before the renderer sees the new viewport and a capture in that
+  gap bakes a card laid out against the *previous* card's height.
+- **A frameless window on Windows is 1 DIP larger than the content size you
+  asked for** (604×892 requested, 605×893 reported), so the renderer's viewport
+  is `ceil((dip + 1) × scale)` — 2px over at 125%. The handshake above allows
+  that much slack and the surplus is cropped.
+- **Each card is rendered over the composite as it stands, not the clean
+  base.** A card's captured region includes its shadow room; pasted over the
+  clean base it wipes out any earlier card underneath. Rendered over the
+  composite, overlapping cards stack like objects.
+- **`fullscreen: true` is silently ignored for a window created with
+  `resizable: false`.** A normal window is clamped to the work area even when
+  given `display.bounds`, so the overlay must be fullscreen to cover the
+  taskbar — and therefore must stay resizable.
+- **Windows acrylic was rejected for the overlay.** It exposes no control over
+  blur radius, saturation or contrast, and per-note contrast is a feature. The
+  overlay blurs a frozen `desktopCapturer` shot instead (166ms at 1920×1200).
+  Consequence: video behind the overlay does not animate while it is open.
+- **The renderer cannot use ES modules** (CORS-blocked over `file://`), and
+  tsc's CommonJS output cannot go in plain `<script>` tags either — every file
+  declares `const types_1 = require(...)` in the shared global scope and the
+  second one throws. `scripts/copy-assets.js` wraps each module in a function
+  scope for a ten-line loader in the html, which is what lets the pages share
+  the real `src/shared/*` modules with the main process instead of copies.
 
 ## Layout
 
 ```
-src/main/       Electron main: CLI, tray, editor window, compositor
-src/renderer/   The card. ONE html/css/ts set serves both the baked
-                wallpaper and the live editor, so they cannot drift apart.
-src/shared/     Types shared across the boundary
-scripts/        PowerShell COM bridge, icon generator, editor check
+src/main/       Electron main: CLI, tray, fullscreen overlay, compositor
+src/renderer/   card.css + card.ts: the card, shared by BOTH the baked
+                wallpaper (board.*) and the live overlay (overlay.*), so the
+                two cannot drift apart
+src/shared/     Types, card geometry (layout.ts) and text shared across the
+                boundary - the same pin function places a card in the bake
+                and in the overlay
+scripts/        PowerShell COM bridge, icon generator, asset/module step,
+                overlay check
 ```
 
-`scripts/check-editor.js` boots the editor offscreen, drives it into edit mode
-and screenshots it — useful for checking layout without clicking anything.
+`npm run check` boots the overlay offscreen against a throwaway board, drives
+every gesture with synthetic pointer events (click, hold, reorder, move to
+another card, detach, move a card, tint, Esc, composers, delete) and
+screenshots each state into `tmp/`. Set `GLASSBOARD_CHECK_SHOT=<png>` to use
+an image as the desktop instead of a live capture.

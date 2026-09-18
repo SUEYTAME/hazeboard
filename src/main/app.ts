@@ -1,66 +1,87 @@
-import { app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, screen, shell } from 'electron';
+import {
+  app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, screen, shell,
+  desktopCapturer,
+} from 'electron';
 import * as path from 'path';
 import * as store from './store';
 import { composeAndApply } from './compose';
-import type { BoardPayload } from '../shared/types';
+import { callPage, CARD_W } from './render';
+import { DEFAULT_BACKDROP, type Card, type NoteStyle, type OverlayPayload } from '../shared/types';
 
 const HOTKEY = 'Control+Alt+W';
 
 let tray: Tray | null = null;
-let editor: BrowserWindow | null = null;
-/** Set when notes changed while the editor was open, so we only re-bake once. */
+let overlay: BrowserWindow | null = null;
+/** Guards against a second hotkey press while the capture is in flight. */
+let opening = false;
+/** Set when notes changed while the overlay was open, so we only re-bake once. */
 let dirty = false;
 
 function assetPath(...parts: string[]): string {
   return path.join(__dirname, '..', '..', 'assets', ...parts);
 }
 
-function boardHtml(): string {
-  return path.join(__dirname, '..', 'renderer', 'board.html');
+function overlayHtml(): string {
+  return path.join(__dirname, '..', 'renderer', 'overlay.html');
 }
 
-function createEditor(): BrowserWindow {
+/* ------------------------------------------------------------------ *
+ *  Overlay                                                            *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Capture the whole primary display at full resolution. Measured at 166ms for
+ * 1920x1200 including other windows and the taskbar. JPEG rather than PNG:
+ * the page blurs it heavily, so compression artefacts are invisible, and it
+ * crosses the executeJavaScript boundary in a fraction of the bytes.
+ */
+async function captureScreen(display: Electron.Display, widthPx: number, heightPx: number): Promise<string> {
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: widthPx, height: heightPx },
+  });
+  const source = sources.find((s) => s.display_id === String(display.id)) ?? sources[0];
+  if (!source) throw new Error('desktopCapturer returned no screen sources');
+
+  const size = source.thumbnail.getSize();
+  if (size.width === 0 || size.height === 0) {
+    throw new Error('screen capture is empty (is screen recording blocked?)');
+  }
+  return `data:image/jpeg;base64,${source.thumbnail.toJPEG(88).toString('base64')}`;
+}
+
+function createOverlay(display: Electron.Display): BrowserWindow {
   const win = new BrowserWindow({
-    width: 620,
-    height: 660,
+    // display.bounds, not workArea: the overlay must cover the taskbar too.
+    // Bounds alone are not enough - Windows clamps a normal window to the
+    // work area (verified: viewport 1140 of 1200px, taskbar visible) - so the
+    // window is created in fullscreen mode, which is exempt from that clamp.
+    // It must stay resizable: on Windows, Electron silently ignores
+    // fullscreen for a window created with resizable: false (verified).
+    x: display.bounds.x,
+    y: display.bounds.y,
+    width: display.bounds.width,
+    height: display.bounds.height,
+    fullscreen: true,
     frame: false,
-    resizable: false,
     show: false,
     skipTaskbar: true,
-    alwaysOnTop: true,
-    // Windows 11 acrylic gives the window a real live blur of whatever is
-    // behind it. backdrop-filter cannot do that here: in a standalone window
-    // there is nothing behind the page for CSS to sample.
-    backgroundMaterial: 'acrylic',
-    backgroundColor: '#00000000',
+    hasShadow: false,
+    backgroundColor: '#0a0908',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
     },
   });
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.setMenuBarVisibility(false);
 
-  win.loadFile(boardHtml());
-
-  win.webContents.once('did-finish-load', async () => {
-    const payload: BoardPayload = {
-      mode: 'editor',
-      notes: store.load().notes,
-      backgroundUrl: null,
-      footer: 'hold a note to edit  ·  esc to close',
-      geometry: null,
-    };
-    await win.webContents.executeJavaScript(
-      `window.__renderBoard(${JSON.stringify(payload)}).then(() => window.__initEditor())`
-    );
-    win.show();
-    win.focus();
-  });
-
-  // Closing the editor is what re-bakes the wallpaper: doing it on every
-  // keystroke would mean a full render per character.
+  // Closing the overlay is what re-bakes the wallpaper: doing it on every
+  // change would mean a full render per keystroke.
   win.on('hide', () => { void flush(); });
-  win.on('closed', () => { editor = null; });
+  win.on('closed', () => { overlay = null; });
 
   // Never navigate away or open windows from inside the board.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -69,6 +90,59 @@ function createEditor(): BrowserWindow {
   });
 
   return win;
+}
+
+async function openOverlay(): Promise<void> {
+  if (opening) return;
+  opening = true;
+  try {
+    const display = screen.getPrimaryDisplay();
+    const scale = display.scaleFactor || 1;
+    const canvasW = Math.round(display.size.width * scale);
+    const canvasH = Math.round(display.size.height * scale);
+
+    // Capture BEFORE the window shows, or the overlay captures itself.
+    const screenshotUrl = await captureScreen(display, canvasW, canvasH);
+
+    if (!overlay) {
+      overlay = createOverlay(display);
+      await overlay.loadFile(overlayHtml());
+    } else {
+      overlay.setBounds(display.bounds);
+    }
+    // One CSS pixel = one wallpaper pixel, exactly as in the bake, so the live
+    // card and the baked card are the same size at the same place.
+    await overlay.webContents.setZoomFactor(1 / scale);
+
+    const payload: OverlayPayload = {
+      mode: 'overlay',
+      cards: store.load().cards,
+      screenshotUrl,
+      canvasW,
+      canvasH,
+      cardW: CARD_W,
+      backdrop: DEFAULT_BACKDROP,
+    };
+    await callPage(overlay, `window.__initOverlay(${JSON.stringify(payload)})`);
+
+    overlay.show();
+    // The taskbar is itself a topmost window. A window Windows refuses to
+    // bring to the foreground (the hotkey does not grant that) stays under it
+    // even when fullscreen, so re-assert topmost order after showing.
+    overlay.setAlwaysOnTop(true, 'screen-saver');
+    overlay.moveTop();
+    overlay.focus();
+  } catch (err) {
+    console.error(`glassboard: could not open overlay: ${(err as Error).message}`);
+    if (tray) tray.setToolTip(`glassboard - overlay FAILED: ${(err as Error).message}`);
+  } finally {
+    opening = false;
+  }
+}
+
+function toggleOverlay(): void {
+  if (overlay?.isVisible()) overlay.hide();
+  else void openOverlay();
 }
 
 async function flush(): Promise<void> {
@@ -84,14 +158,9 @@ async function flush(): Promise<void> {
   }
 }
 
-function toggleEditor(): void {
-  if (!editor) {
-    editor = createEditor();
-    return;
-  }
-  if (editor.isVisible()) editor.hide();
-  else { editor.show(); editor.focus(); }
-}
+/* ------------------------------------------------------------------ *
+ *  Tray / IPC                                                         *
+ * ------------------------------------------------------------------ */
 
 function buildTray(): void {
   const icon = nativeImage.createFromPath(assetPath('tray.png'));
@@ -99,7 +168,7 @@ function buildTray(): void {
   tray.setToolTip('glassboard');
 
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open board', click: toggleEditor },
+    { label: 'Open board', click: toggleOverlay },
     { type: 'separator' },
     {
       label: 'Refresh wallpaper',
@@ -115,29 +184,30 @@ function buildTray(): void {
     { label: 'Quit glassboard', click: () => { app.exit(0); } },
   ]));
 
-  tray.on('click', toggleEditor);
+  tray.on('click', toggleOverlay);
 }
 
 function wireIpc(): void {
-  const notes = (): ReturnType<typeof store.load>['notes'] => store.load().notes;
+  const cards = (): Card[] => store.load().cards;
+  const mutate = (fn: () => void): Card[] => { fn(); dirty = true; return cards(); };
 
-  ipcMain.handle('gb:getNotes', () => notes());
-  ipcMain.handle('gb:add', (_e, text: string) => { store.addNote(text); dirty = true; return notes(); });
-  ipcMain.handle('gb:toggle', (_e, id: string) => { store.toggleNote(id); dirty = true; return notes(); });
-  ipcMain.handle('gb:remove', (_e, id: string) => { store.removeNote(id); dirty = true; return notes(); });
-  ipcMain.handle('gb:clearDone', () => { store.clearDone(); dirty = true; return notes(); });
-  ipcMain.on('gb:close', () => { editor?.hide(); });
-
-  ipcMain.on('gb:resize', (_e, physicalHeight: number) => {
-    if (!editor || !Number.isFinite(physicalHeight)) return;
-    const [w] = editor.getContentSize();
-    const scale = screen.getDisplayMatching(editor.getBounds()).scaleFactor || 1;
-    const dip = physicalHeight / scale;
-    // Clamped: a huge list must not grow a window taller than the screen, and
-    // an empty board should still be big enough to type into.
-    const h = Math.round(Math.min(Math.max(dip, 200), 820));
-    editor.setContentSize(w, h);
-  });
+  ipcMain.handle('gb:getCards', () => cards());
+  ipcMain.handle('gb:addCard', (_e, text: string, x?: number, y?: number) =>
+    mutate(() => store.addCard(text, x !== undefined && y !== undefined ? { x, y } : undefined)));
+  ipcMain.handle('gb:addNote', (_e, cardId: string, text: string) =>
+    mutate(() => store.addNote(text, cardId)));
+  ipcMain.handle('gb:toggleNote', (_e, id: string) => mutate(() => store.toggleNote(id)));
+  ipcMain.handle('gb:removeNote', (_e, id: string) => mutate(() => store.removeNote(id)));
+  ipcMain.handle('gb:removeCard', (_e, id: string) => mutate(() => store.removeCard(id)));
+  ipcMain.handle('gb:moveCard', (_e, id: string, x: number, y: number) =>
+    mutate(() => store.moveCard(id, x, y)));
+  ipcMain.handle('gb:moveNote', (_e, noteId: string, cardId: string, index: number) =>
+    mutate(() => store.moveNote(noteId, cardId, index)));
+  ipcMain.handle('gb:detachNote', (_e, noteId: string, x: number, y: number) =>
+    mutate(() => store.detachNote(noteId, x, y)));
+  ipcMain.handle('gb:setNoteStyle', (_e, noteId: string, style: Partial<NoteStyle>) =>
+    mutate(() => store.setNoteStyle(noteId, style)));
+  ipcMain.on('gb:close', () => { overlay?.hide(); });
 }
 
 export function startApp(): void {
@@ -146,19 +216,19 @@ export function startApp(): void {
     app.exit(0);
     return;
   }
-  app.on('second-instance', toggleEditor);
+  app.on('second-instance', toggleOverlay);
 
   wireIpc();
   buildTray();
 
-  if (!globalShortcut.register(HOTKEY, toggleEditor)) {
+  if (!globalShortcut.register(HOTKEY, toggleOverlay)) {
     console.error(`glassboard: could not register ${HOTKEY} - another app likely owns it.`);
     if (tray) tray.setToolTip(`glassboard - ${HOTKEY} unavailable`);
   }
 
   app.on('will-quit', () => globalShortcut.unregisterAll());
 
-  // Tray app: closing the editor must not end the process.
+  // Tray app: closing the overlay must not end the process.
   app.on('window-all-closed', () => { /* stay resident */ });
 }
 

@@ -1,17 +1,28 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { Note } from '../shared/types';
+import type { Card, NoteStyle } from '../shared/types';
 
 /**
- * The only surface the editor page can reach. contextIsolation is on, so the
+ * The only surface the overlay page can reach. contextIsolation is on, so the
  * page gets these functions and nothing else - no ipcRenderer, no fs, no
- * require.
+ * require. Every mutation returns the full card list so the page always
+ * repaints from authoritative state.
  */
 contextBridge.exposeInMainWorld('glassboard', {
-  getNotes: (): Promise<Note[]> => ipcRenderer.invoke('gb:getNotes'),
-  add: (text: string): Promise<Note[]> => ipcRenderer.invoke('gb:add', text),
-  toggle: (id: string): Promise<Note[]> => ipcRenderer.invoke('gb:toggle', id),
-  remove: (id: string): Promise<Note[]> => ipcRenderer.invoke('gb:remove', id),
-  clearDone: (): Promise<Note[]> => ipcRenderer.invoke('gb:clearDone'),
+  getCards: (): Promise<Card[]> => ipcRenderer.invoke('gb:getCards'),
+  addCard: (text: string, x?: number, y?: number): Promise<Card[]> =>
+    ipcRenderer.invoke('gb:addCard', text, x, y),
+  addNote: (cardId: string, text: string): Promise<Card[]> =>
+    ipcRenderer.invoke('gb:addNote', cardId, text),
+  toggleNote: (id: string): Promise<Card[]> => ipcRenderer.invoke('gb:toggleNote', id),
+  removeNote: (id: string): Promise<Card[]> => ipcRenderer.invoke('gb:removeNote', id),
+  removeCard: (id: string): Promise<Card[]> => ipcRenderer.invoke('gb:removeCard', id),
+  moveCard: (id: string, x: number, y: number): Promise<Card[]> =>
+    ipcRenderer.invoke('gb:moveCard', id, x, y),
+  moveNote: (noteId: string, cardId: string, index: number): Promise<Card[]> =>
+    ipcRenderer.invoke('gb:moveNote', noteId, cardId, index),
+  detachNote: (noteId: string, x: number, y: number): Promise<Card[]> =>
+    ipcRenderer.invoke('gb:detachNote', noteId, x, y),
+  setNoteStyle: (noteId: string, style: Partial<NoteStyle>): Promise<Card[]> =>
+    ipcRenderer.invoke('gb:setNoteStyle', noteId, style),
   close: (): void => ipcRenderer.send('gb:close'),
-  resize: (height: number): void => ipcRenderer.send('gb:resize', height),
 });

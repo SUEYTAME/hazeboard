@@ -1,0 +1,262 @@
+/* ---------------------------------------------------------------
+   glassboard - the CARD. Shared by the baked wallpaper render
+   (board.html) and the live overlay (overlay.html). Never fork this
+   file; the whole point is that what you drag around is pixel-
+   identical to what gets baked.
+   --------------------------------------------------------------- */
+
+:root {
+  /* Warm neutral glass. Deliberately not neon, not cold blue-on-black. */
+  --glass-top:    rgba(255, 252, 248, 0.16);
+  --glass-bottom: rgba(255, 248, 240, 0.07);
+  --glass-scrim:  rgba(28, 22, 18, 0.26);   /* legibility floor over bright wallpapers */
+  --hairline:     rgba(255, 255, 255, 0.22);
+  --highlight:    rgba(255, 255, 255, 0.38);
+
+  --ink:          rgba(255, 253, 250, 0.96);
+  --ink-soft:     rgba(255, 250, 244, 0.62);
+  --ink-faint:    rgba(255, 250, 244, 0.34);
+
+  --radius: 30px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ----------------------------- the glass ----------------------------- */
+
+/* Positioned by its owner: the bake sets --card-x/--card-y to the offset
+   inside the render region, the overlay to the pinned screen position. */
+.card {
+  position: absolute;
+  left: var(--card-x, 0);
+  top: var(--card-y, 0);
+  width: var(--card-w, 560px);
+  max-height: var(--card-max-h, none);
+  display: flex;
+  flex-direction: column;
+  padding: 38px 36px 30px;
+  border-radius: var(--radius);
+  border: 1px solid var(--hairline);
+
+  /* Scrim first, then the warm gradient on top of it. The scrim is what keeps
+     white text readable when the wallpaper underneath happens to be bright. */
+  background:
+    linear-gradient(160deg, var(--glass-top), var(--glass-bottom)),
+    linear-gradient(var(--glass-scrim), var(--glass-scrim));
+
+  backdrop-filter: blur(44px) saturate(165%);
+  -webkit-backdrop-filter: blur(44px) saturate(165%);
+
+  /* Must stay inside SHADOW_ROOM (96px) on every side or the bake cuts it
+     off flat at the region edge: 24 + 60 = 84px below, 60px to the sides. */
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.44),
+    0 4px 14px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 var(--highlight),            /* the lit top edge */
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ----------------------------- header ----------------------------- */
+
+.card > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 20px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.13);
+  flex: none;
+}
+
+.brand {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: var(--ink-soft);
+}
+
+.date {
+  flex: none;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+/* ----------------------------- notes ----------------------------- */
+
+.notes {
+  list-style: none;
+  overflow: hidden;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 -12px;
+}
+
+/* Each row carries its own tint as --th (hue), --ts (saturation) and --ta
+   (intensity, 0..1). Every colour below derives from those three. */
+.note {
+  --tint-wash:  hsla(var(--th, 222), var(--ts, 10%), 62%, calc(var(--ta, 0.32) * 0.45));
+  --tint-line:  hsl(var(--th, 222), var(--ts, 10%), 74%);
+  --tint-fill:  hsla(var(--th, 222), var(--ts, 10%), 74%, 0.16);
+
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 19px;
+  line-height: 1.42;
+  color: var(--ink);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  background: var(--tint-wash);
+}
+
+/* The marker: a small rounded square, tinted when open, filled when done. */
+.note .mark {
+  flex: none;
+  width: 17px; height: 17px;
+  margin-top: 4px;
+  border-radius: 6px;
+  border: 1.5px solid var(--tint-line);
+  background: var(--tint-fill);
+  position: relative;
+}
+
+.note.done .mark {
+  background: var(--tint-line);
+  border-color: var(--tint-line);
+}
+.note.done .mark::after {
+  content: "";
+  position: absolute;
+  left: 4.5px; top: 1.5px;
+  width: 4px; height: 8.5px;
+  border: solid rgba(40, 26, 14, 0.9);
+  border-width: 0 2px 2px 0;
+  transform: rotate(43deg);
+}
+
+.note.done .text {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 250, 244, 0.3);
+}
+
+.text { flex: 1 1 auto; min-width: 0; word-break: break-word; }
+
+.empty {
+  display: none;
+  padding: 14px 0 6px;
+  font-size: 17px;
+  color: var(--ink-faint);
+  font-style: italic;
+}
+.card.is-empty .empty { display: block; }
+.card.is-empty .notes { display: none; }
+
+.foot {
+  flex: none;
+  padding-top: 18px;
+  margin-top: 10px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--ink-faint);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.foot:empty { display: none; }
+
+/* =====================================================================
+   Overlay-only affordances. Hidden unless the owning page opts in, so
+   the bake never renders them even though the markup is shared.
+   ===================================================================== */
+
+.remove, .card-remove, .tint, .composer { display: none; }
+
+.remove, .card-remove {
+  flex: none;
+  width: 22px; height: 22px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(38, 24, 16, 0.92);
+  background: rgba(255, 186, 122, 0.92);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.remove:hover, .card-remove:hover { background: rgba(255, 205, 155, 1); }
+
+.card-remove {
+  margin-top: 0;
+  align-self: center;
+}
+
+.tint {
+  flex: none;
+  width: 18px; height: 18px;
+  margin-top: 4px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  background: var(--tint-line);
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.tint:hover { border-color: #fff; }
+
+.composer {
+  flex: none;
+  padding-top: 16px;
+  margin-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+.composer input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 16px;
+  outline: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.composer input::placeholder { color: var(--ink-faint); }
+.composer input:focus {
+  border-color: rgba(255, 186, 122, 0.55);
+  background: rgba(255, 255, 255, 0.10);
+}
+
+/* The iOS "hold to wiggle" tell. Two alternating phases so neighbours are
+   visibly out of step rather than moving as one block. */
+@keyframes gb-wiggle {
+  0%   { transform: rotate(-0.45deg); }
+  50%  { transform: rotate(0.45deg); }
+  100% { transform: rotate(-0.45deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card, .note { animation: none !important; }
+}

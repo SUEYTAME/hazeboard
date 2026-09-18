@@ -1,0 +1,192 @@
+/* ---------------------------------------------------------------
+   glassboard - the fullscreen overlay. The card itself lives in
+   card.css (shared with the bake); this file is the room it sits in:
+   the blurred capture, drag ghosts, drop gaps, the tint popover.
+   --------------------------------------------------------------- */
+
+:root {
+  --blur: 42px;
+  --saturate: 1.7;
+  --dim: 0.28;
+}
+
+body {
+  background: #000;
+  user-select: none;
+  cursor: default;
+}
+
+/* Bleed past the edges so the blur has no transparent fringe to sample. */
+#shot {
+  position: absolute;
+  left: -80px; top: -80px;
+  width: calc(100% + 160px);
+  height: calc(100% + 160px);
+  object-fit: cover;
+  filter: blur(var(--blur)) saturate(var(--saturate));
+}
+
+#dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, var(--dim));
+}
+
+#field {
+  position: absolute;
+  inset: 0;
+}
+
+/* Live cards may be taller than the bake allows; let their list scroll. */
+#field .card .notes { overflow-y: auto; }
+#field .card .notes::-webkit-scrollbar { width: 8px; }
+#field .card .notes::-webkit-scrollbar-track { background: transparent; }
+#field .card .notes::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+}
+
+.composer { display: block; }
+#field .note { cursor: grab; }
+#field .card > header { cursor: grab; }
+#field .note:hover { filter: brightness(1.12); }
+
+/* ----------------------------- jiggle mode ----------------------------- */
+
+body.jiggle #field .card {
+  animation: gb-wiggle 0.32s ease-in-out infinite;
+}
+body.jiggle #field .card:nth-child(even) { animation-delay: -0.16s; }
+body.jiggle .remove,
+body.jiggle .card-remove,
+body.jiggle .tint { display: flex; }
+
+/* ----------------------------- dragging ----------------------------- */
+
+body.dragging { cursor: grabbing; }
+body.dragging #field .note,
+body.dragging #field .card > header { cursor: grabbing; }
+
+/* The row being dragged leaves the list entirely, so the list lays out
+   exactly as it will after the drop; the card being dragged stays as a
+   faint placeholder where it was. */
+.note.drag-source { display: none; }
+.card.drag-source { opacity: 0.35; }
+
+.ghost {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  margin: 0;
+  animation: none !important;
+  transform: scale(1.03) rotate(-0.6deg);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
+}
+/* A note ghost is a bare <li>; give it its own glass so it reads as an
+   object in flight rather than text floating over the wallpaper. */
+li.ghost {
+  list-style: none;
+  width: 488px;
+  background:
+    var(--tint-wash),
+    linear-gradient(160deg, var(--glass-top), var(--glass-bottom)),
+    linear-gradient(var(--glass-scrim), var(--glass-scrim));
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  border: 1px solid var(--hairline);
+}
+li.ghost .remove, li.ghost .tint { display: none; }
+li.ghost.will-detach {
+  border-color: rgba(255, 186, 122, 0.8);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55), 0 0 0 3px rgba(255, 186, 122, 0.25);
+}
+
+.drop-gap {
+  height: 47px;
+  margin: 0;
+  border-radius: 12px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* ----------------------------- new card ----------------------------- */
+
+#newcard {
+  position: absolute;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  width: 420px;
+}
+#newcard input {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(20, 16, 14, 0.42);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  outline: none;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+}
+#newcard input::placeholder { color: var(--ink-faint); }
+#newcard input:focus { border-color: rgba(255, 186, 122, 0.55); }
+
+#hint {
+  position: absolute;
+  left: 32px;
+  bottom: 28px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* ----------------------------- tint popover ----------------------------- */
+
+#popover {
+  position: absolute;
+  z-index: 50;
+  width: 236px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid var(--hairline);
+  background:
+    linear-gradient(160deg, rgba(255, 252, 248, 0.14), rgba(255, 248, 240, 0.06)),
+    linear-gradient(rgba(20, 16, 14, 0.55), rgba(20, 16, 14, 0.55));
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+}
+#popover[hidden] { display: none; }
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.swatch {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: hsl(var(--sh), var(--ss), 62%);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+.swatch:hover { border-color: rgba(255, 255, 255, 0.5); }
+.swatch.active { border-color: #fff; }
+
+.intensity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.intensity input { flex: 1 1 auto; accent-color: rgba(255, 186, 122, 0.95); }
