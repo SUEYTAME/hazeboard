@@ -23,7 +23,7 @@ import { buildCard, applyNoteStyle, settled } from './card';
  *   Esc                   close popover / cancel drag / leave jiggle / close
  */
 
-interface GlassboardApi {
+interface HazeboardApi {
   getCards(): Promise<Card[]>;
   addCard(text: string, x?: number, y?: number): Promise<Card[]>;
   addNote(cardId: string, text: string): Promise<Card[]>;
@@ -37,9 +37,9 @@ interface GlassboardApi {
   close(): void;
 }
 
-function api(): GlassboardApi {
-  const a = (window as unknown as { glassboard?: GlassboardApi }).glassboard;
-  if (!a) throw new Error('preload bridge missing: window.glassboard is undefined');
+function api(): HazeboardApi {
+  const a = (window as unknown as { hazeboard?: HazeboardApi }).hazeboard;
+  if (!a) throw new Error('preload bridge missing: window.hazeboard is undefined');
   return a;
 }
 

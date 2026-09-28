@@ -21,7 +21,7 @@ export function buildCard(card: Card, opts: CardOptions): HTMLElement {
   const header = document.createElement('header');
   const brand = document.createElement('span');
   brand.className = 'brand';
-  brand.textContent = card.title ?? 'GLASSBOARD';
+  brand.textContent = card.title ?? 'HAZEBOARD';
   const date = document.createElement('span');
   date.className = 'date';
   date.textContent = new Date().toLocaleDateString(undefined, {

@@ -133,8 +133,8 @@ async function openOverlay(): Promise<void> {
     overlay.moveTop();
     overlay.focus();
   } catch (err) {
-    console.error(`glassboard: could not open overlay: ${(err as Error).message}`);
-    if (tray) tray.setToolTip(`glassboard - overlay FAILED: ${(err as Error).message}`);
+    console.error(`hazeboard: could not open overlay: ${(err as Error).message}`);
+    if (tray) tray.setToolTip(`hazeboard - overlay FAILED: ${(err as Error).message}`);
   } finally {
     opening = false;
   }
@@ -153,8 +153,8 @@ async function flush(): Promise<void> {
   } catch (err) {
     // Surfaced rather than swallowed: if the wallpaper did not update, the
     // notes the user just wrote are not where they expect to see them.
-    console.error(`glassboard: wallpaper refresh failed: ${(err as Error).message}`);
-    if (tray) tray.setToolTip(`glassboard - refresh FAILED: ${(err as Error).message}`);
+    console.error(`hazeboard: wallpaper refresh failed: ${(err as Error).message}`);
+    if (tray) tray.setToolTip(`hazeboard - refresh FAILED: ${(err as Error).message}`);
   }
 }
 
@@ -165,7 +165,7 @@ async function flush(): Promise<void> {
 function buildTray(): void {
   const icon = nativeImage.createFromPath(assetPath('tray.png'));
   tray = new Tray(icon);
-  tray.setToolTip('glassboard');
+  tray.setToolTip('hazeboard');
 
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open board', click: toggleOverlay },
@@ -181,7 +181,7 @@ function buildTray(): void {
     { type: 'separator' },
     { label: `Hotkey: ${HOTKEY.replace(/Control/, 'Ctrl')}`, enabled: false },
     { type: 'separator' },
-    { label: 'Quit glassboard', click: () => { app.exit(0); } },
+    { label: 'Quit hazeboard', click: () => { app.exit(0); } },
   ]));
 
   tray.on('click', toggleOverlay);
@@ -222,8 +222,8 @@ export function startApp(): void {
   buildTray();
 
   if (!globalShortcut.register(HOTKEY, toggleOverlay)) {
-    console.error(`glassboard: could not register ${HOTKEY} - another app likely owns it.`);
-    if (tray) tray.setToolTip(`glassboard - ${HOTKEY} unavailable`);
+    console.error(`hazeboard: could not register ${HOTKEY} - another app likely owns it.`);
+    if (tray) tray.setToolTip(`hazeboard - ${HOTKEY} unavailable`);
   }
 
   app.on('will-quit', () => globalShortcut.unregisterAll());

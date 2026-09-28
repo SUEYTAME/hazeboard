@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------
-   glassboard - the CARD. Shared by the baked wallpaper render
+   hazeboard - the CARD. Shared by the baked wallpaper render
    (board.html) and the live overlay (overlay.html). Never fork this
    file; the whole point is that what you drag around is pixel-
    identical to what gets baked.

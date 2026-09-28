@@ -12,7 +12,7 @@ function argv(): string[] {
 }
 
 const USAGE = `
-glassboard - a whiteboard baked into your desktop wallpaper
+hazeboard - a whiteboard baked into your desktop wallpaper
 
   board add <text>       add a note to the first card and refresh the wallpaper
   board list             list every card and its notes, with ids

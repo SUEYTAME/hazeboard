@@ -23,7 +23,7 @@ export function dataDir(): string {
  * root work, everything under AppData fails.
  */
 export function outDir(): string {
-  const dir = path.join(app.getPath('pictures'), 'Glassboard');
+  const dir = path.join(app.getPath('pictures'), 'Hazeboard');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

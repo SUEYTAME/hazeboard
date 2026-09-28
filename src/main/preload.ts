@@ -7,7 +7,7 @@ import type { Card, NoteStyle } from '../shared/types';
  * require. Every mutation returns the full card list so the page always
  * repaints from authoritative state.
  */
-contextBridge.exposeInMainWorld('glassboard', {
+contextBridge.exposeInMainWorld('hazeboard', {
   getCards: (): Promise<Card[]> => ipcRenderer.invoke('gb:getCards'),
   addCard: (text: string, x?: number, y?: number): Promise<Card[]> =>
     ipcRenderer.invoke('gb:addCard', text, x, y),

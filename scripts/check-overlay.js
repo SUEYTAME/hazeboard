@@ -10,7 +10,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Running a bare script makes Electron default the app name to 'Electron'.
-app.setName('glassboard');
+app.setName('hazeboard');
 
 const root = path.join(__dirname, '..');
 const outDir = path.join(root, 'tmp');
@@ -100,12 +100,12 @@ async function main() {
   await win.loadFile(path.join(root, 'dist', 'renderer', 'overlay.html'));
   await win.webContents.setZoomFactor(1 / scale);
 
-  // GLASSBOARD_CHECK_SHOT=<png> uses that image as the "desktop" instead of a
+  // HAZEBOARD_CHECK_SHOT=<png> uses that image as the "desktop" instead of a
   // live capture - e.g. a baked wallpaper, to see how the blur treats the
   // baked cards sitting behind the live ones.
   let screenshotUrl;
-  if (process.env.GLASSBOARD_CHECK_SHOT) {
-    const png = fs.readFileSync(process.env.GLASSBOARD_CHECK_SHOT);
+  if (process.env.HAZEBOARD_CHECK_SHOT) {
+    const png = fs.readFileSync(process.env.HAZEBOARD_CHECK_SHOT);
     screenshotUrl = `data:image/png;base64,${png.toString('base64')}`;
   } else {
     const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: W, height: H } });
@@ -136,7 +136,7 @@ async function main() {
   const counts = await run(`({
     cards: document.querySelectorAll('#field .card').length,
     notes: document.querySelectorAll('#field .note').length,
-    bridge: typeof window.glassboard,
+    bridge: typeof window.hazeboard,
   })`);
   check(counts.cards === 2 && counts.notes === 5, `rendered 2 cards / 5 notes (got ${counts.cards}/${counts.notes})`);
   check(counts.bridge === 'object', 'preload bridge present');

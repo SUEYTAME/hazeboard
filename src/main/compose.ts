@@ -9,7 +9,7 @@ import { setWallpaper, currentWallpaper } from './wallpaper';
  * Pick the image the cards get composited onto.
  *
  * The trap this guards against: once we set the wallpaper to our own output,
- * "the current wallpaper" is a glassboard render. Compositing onto that would
+ * "the current wallpaper" is a hazeboard render. Compositing onto that would
  * stack a second card on top of the first, and every refresh would stack another.
  * So the first time we run we snapshot the user's real wallpaper and remember it.
  */
@@ -36,7 +36,7 @@ async function resolveBase(): Promise<string> {
   }
   if (path.dirname(current).toLowerCase().startsWith(ours)) {
     throw new Error(
-      'current wallpaper is already a glassboard render and no base is remembered.\n' +
+      'current wallpaper is already a hazeboard render and no base is remembered.\n' +
       'set a base explicitly:  npm run board -- base "C:\path\to\image.jpg"'
     );
   }

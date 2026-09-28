@@ -1,5 +1,5 @@
 <#
-  glassboard wallpaper control.
+  hazeboard wallpaper control.
 
   Uses the IDesktopWallpaper COM interface (Windows 8+) rather than the older
   SystemParametersInfo call, because SPI sets ONE image for every monitor.

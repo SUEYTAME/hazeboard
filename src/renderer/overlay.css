@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------
-   glassboard - the fullscreen overlay. The card itself lives in
+   hazeboard - the fullscreen overlay. The card itself lives in
    card.css (shared with the bake); this file is the room it sits in:
    the blurred capture, drag ghosts, drop gaps, the tint popover.
    --------------------------------------------------------------- */

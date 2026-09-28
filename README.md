@@ -1,15 +1,15 @@
-# glassboard
+# hazeboard
 
 A whiteboard that lives in your Windows desktop wallpaper. Notes you write are
 composited into the wallpaper image itself, so they are simply *there* when you
 log in — no process has to be running for you to see them.
 
-![the card sits on the right, where desktop icons aren't](docs/example.png)
+![two cards floating over the desktop, demo notes only](docs/example.png)
 
 ## How it works
 
 There are three places you could put something that looks like it's on the
-wallpaper. glassboard uses the first:
+wallpaper. hazeboard uses the first:
 
 1. **Baked into the wallpaper image** — render the notes onto a copy of your
    wallpaper and set that as the desktop background. Zero runtime cost, survives
@@ -86,7 +86,7 @@ Each of these cost real debugging time and is easy to trip over again:
 - **`IDesktopWallpaper::SetWallpaper` refuses any image under `AppData`**
   (Roaming *and* Local), failing with a flatly misleading `0x80070002`
   "file not found" for a file that is definitely there. Generated wallpapers go
-  to `Pictures/Glassboard` for this reason — note that Electron's default
+  to `Pictures/Hazeboard` for this reason — note that Electron's default
   `userData` directory is under AppData, so the obvious choice is the one place
   that silently cannot work.
 - **Windows caches the wallpaper**, so rewriting the same path can leave the
@@ -156,5 +156,10 @@ scripts/        PowerShell COM bridge, icon generator, asset/module step,
 `npm run check` boots the overlay offscreen against a throwaway board, drives
 every gesture with synthetic pointer events (click, hold, reorder, move to
 another card, detach, move a card, tint, Esc, composers, delete) and
-screenshots each state into `tmp/`. Set `GLASSBOARD_CHECK_SHOT=<png>` to use
+screenshots each state into `tmp/`. Set `HAZEBOARD_CHECK_SHOT=<png>` to use
 an image as the desktop instead of a live capture.
+
+## License
+
+Code: [MIT](LICENSE) © 2026 Edgar Homero Sanchez Gonzalez.
+Name and brand: "Hazeboard"™ is covered by the [trademark policy](TRADEMARK.md).
