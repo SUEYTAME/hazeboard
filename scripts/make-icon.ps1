@@ -45,3 +45,4 @@ function New-Icon([int]$size, [string]$path) {
 
 New-Icon 32 (Join-Path $OutDir 'tray.png')
 New-Icon 64 (Join-Path $OutDir 'tray@2x.png')
+New-Icon 256 (Join-Path $OutDir 'icon.png')

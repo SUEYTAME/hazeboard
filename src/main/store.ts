@@ -300,6 +300,19 @@ export function removeCard(idPrefix: string): Card {
   return card;
 }
 
+/** False until the first save: this is how the app recognises its first launch. */
+export function hasBoard(): boolean {
+  return fs.existsSync(statePath());
+}
+
+export function setCardTitle(idPrefix: string, title: string | null): Card {
+  const state = load();
+  const card = resolveCard(state, idPrefix);
+  card.title = title;
+  save(state);
+  return card;
+}
+
 export function clearDone(): number {
   const state = load();
   const before = allNotes(state).length;

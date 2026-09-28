@@ -4,7 +4,21 @@ A whiteboard that lives in your Windows desktop wallpaper. Notes you write are
 composited into the wallpaper image itself, so they are simply *there* when you
 log in — no process has to be running for you to see them.
 
-![two cards floating over the desktop, demo notes only](docs/example.png)
+![two panels floating over the desktop, demo notes only](docs/example.png)
+
+## Install
+
+1. Download **`Hazeboard-Setup-<version>.exe`** from the
+   [latest release](https://github.com/SUEYTAME/hazeboard/releases/latest) and run it.
+   The installer is not code-signed yet, so Windows may say *"Windows protected
+   your PC"* — click **More info → Run anyway**.
+2. Hazeboard opens your board with a **Welcome** panel. From then on:
+   - **Ctrl+Alt+W** (or clicking the tray icon) opens and closes the board.
+   - Type into **New panel…** at the bottom to make a panel; type into a panel's
+     own box to add a note to it.
+   - Press **Esc** and your panels are saved into the desktop wallpaper.
+3. Hazeboard starts with Windows so the shortcut always works. Turn that off by
+   right-clicking the tray icon and unticking **Start with Windows**.
 
 ## How it works
 
@@ -138,6 +152,20 @@ Each of these cost real debugging time and is easy to trip over again:
   second one throws. `scripts/copy-assets.js` wraps each module in a function
   scope for a ten-line loader in the html, which is what lets the pages share
   the real `src/shared/*` modules with the main process instead of copies.
+- **Ctrl+Alt+W only works while the tray app is running.** A global hotkey
+  belongs to a live process; after a reboot with no login item, pressing it
+  does nothing and nothing says why. That is why the first launch of an
+  installed build turns on *Start with Windows*, and why a failed hotkey
+  registration or board open now raises a Windows notification.
+- **The installer ships without an asar archive** (`"asar": false`).
+  `scripts/wallpaper.ps1` is executed by `powershell.exe`, which cannot read a
+  file packed inside `app.asar`.
+
+## Building the installer
+
+```
+npm run dist        # -> release/Hazeboard-Setup-<version>.exe
+```
 
 ## Layout
 

@@ -1,6 +1,6 @@
 import {
   app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, screen, shell,
-  desktopCapturer,
+  desktopCapturer, Notification,
 } from 'electron';
 import * as path from 'path';
 import * as store from './store';
@@ -92,7 +92,17 @@ function createOverlay(display: Electron.Display): BrowserWindow {
   return win;
 }
 
-async function openOverlay(): Promise<void> {
+/**
+ * Failures must reach the user. A tray tooltip or a console line is invisible
+ * to someone who launched the app from the Start menu, which is exactly how
+ * "Ctrl+Alt+W does nothing" went undiagnosed.
+ */
+function notify(body: string): void {
+  if (!Notification.isSupported()) return;
+  new Notification({ title: 'Hazeboard', body }).show();
+}
+
+async function openOverlay(focusNewPanel = false): Promise<void> {
   if (opening) return;
   opening = true;
   try {
@@ -132,9 +142,12 @@ async function openOverlay(): Promise<void> {
     overlay.setAlwaysOnTop(true, 'screen-saver');
     overlay.moveTop();
     overlay.focus();
+    if (focusNewPanel) await callPage(overlay, 'window.__focusNewPanel()');
   } catch (err) {
-    console.error(`hazeboard: could not open overlay: ${(err as Error).message}`);
-    if (tray) tray.setToolTip(`hazeboard - overlay FAILED: ${(err as Error).message}`);
+    const msg = (err as Error).message;
+    console.error(`hazeboard: could not open overlay: ${msg}`);
+    if (tray) tray.setToolTip(`Hazeboard - board FAILED: ${msg}`);
+    notify(`Could not open your board: ${msg}`);
   } finally {
     opening = false;
   }
@@ -153,8 +166,10 @@ async function flush(): Promise<void> {
   } catch (err) {
     // Surfaced rather than swallowed: if the wallpaper did not update, the
     // notes the user just wrote are not where they expect to see them.
-    console.error(`hazeboard: wallpaper refresh failed: ${(err as Error).message}`);
-    if (tray) tray.setToolTip(`hazeboard - refresh FAILED: ${(err as Error).message}`);
+    const msg = (err as Error).message;
+    console.error(`hazeboard: wallpaper refresh failed: ${msg}`);
+    if (tray) tray.setToolTip(`Hazeboard - refresh FAILED: ${msg}`);
+    notify(`Your panels could not be saved to the wallpaper: ${msg}`);
   }
 }
 
@@ -165,10 +180,19 @@ async function flush(): Promise<void> {
 function buildTray(): void {
   const icon = nativeImage.createFromPath(assetPath('tray.png'));
   tray = new Tray(icon);
-  tray.setToolTip('hazeboard');
+  tray.setToolTip(`Hazeboard - ${HOTKEY.replace(/Control/, 'Ctrl')} opens your board`);
 
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Open board', click: toggleOverlay },
+    // The accelerator is shown, not registered: globalShortcut owns the key.
+    { label: 'Open my board', accelerator: HOTKEY, registerAccelerator: false, click: () => { void openOverlay(); } },
+    { label: 'New panel', click: () => { void openOverlay(true); } },
+    { type: 'separator' },
+    {
+      label: 'Start with Windows',
+      type: 'checkbox',
+      checked: autostartEnabled(),
+      click: (item) => { setAutostart(item.checked); },
+    },
     { type: 'separator' },
     {
       label: 'Refresh wallpaper',
@@ -179,12 +203,26 @@ function buildTray(): void {
       click: () => { void shell.openPath(store.outDir()); },
     },
     { type: 'separator' },
-    { label: `Hotkey: ${HOTKEY.replace(/Control/, 'Ctrl')}`, enabled: false },
-    { type: 'separator' },
-    { label: 'Quit hazeboard', click: () => { app.exit(0); } },
+    { label: 'Quit Hazeboard', click: () => { app.exit(0); } },
   ]));
 
   tray.on('click', toggleOverlay);
+}
+
+/**
+ * First launch (no board.json yet): leave one panel explaining the basics, and
+ * start with Windows so the hotkey is live after every reboot. Without the
+ * login item nothing listens for Ctrl+Alt+W once the machine restarts - the
+ * cause of the "hotkey does nothing" reports. Only a packaged install registers
+ * it: a dev build would register electron.exe plus a checkout path.
+ */
+function seedFirstRun(): void {
+  const panel = store.addCard('Click a note to tick it off', { x: 0.62, y: 0.22 });
+  store.addNote('Type in the box below to add a note', panel.id);
+  store.addNote(`Press ${HOTKEY.replace(/Control/, 'Ctrl')} any time to open your board`, panel.id);
+  store.setCardTitle(panel.id, 'WELCOME');
+  dirty = true;
+  if (app.isPackaged) setAutostart(true);
 }
 
 function wireIpc(): void {
@@ -216,15 +254,27 @@ export function startApp(): void {
     app.exit(0);
     return;
   }
-  app.on('second-instance', toggleOverlay);
+  // Opening Hazeboard again from the Start menu shows the board, never a no-op.
+  app.on('second-instance', () => { void openOverlay(); });
+
+  // Windows only shows toasts for an app with an AppUserModelID. Same value as
+  // build.appId in package.json, which the installer registers.
+  app.setAppUserModelId('com.sueytame.hazeboard');
+
+  const firstRun = !store.hasBoard();
+  if (firstRun) seedFirstRun();
 
   wireIpc();
   buildTray();
 
+  const key = HOTKEY.replace(/Control/, 'Ctrl');
   if (!globalShortcut.register(HOTKEY, toggleOverlay)) {
     console.error(`hazeboard: could not register ${HOTKEY} - another app likely owns it.`);
-    if (tray) tray.setToolTip(`hazeboard - ${HOTKEY} unavailable`);
+    if (tray) tray.setToolTip(`Hazeboard - ${key} unavailable`);
+    notify(`${key} is taken by another app. Click the Hazeboard icon in the taskbar tray to open your board.`);
   }
+
+  if (firstRun) void openOverlay();
 
   app.on('will-quit', () => globalShortcut.unregisterAll());
 

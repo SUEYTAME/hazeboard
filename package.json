@@ -11,11 +11,40 @@
     "watch": "tsc -p tsconfig.json --watch",
     "start": "npm run build && electron .",
     "board": "node scripts/board.js",
-    "check": "node scripts/check-overlay.js"
+    "check": "node scripts/check-overlay.js",
+    "dist": "npm run build && electron-builder --win nsis --publish never"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "electron": "^33.3.1",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.7.2"
+  },
+  "build": {
+    "appId": "com.sueytame.hazeboard",
+    "productName": "Hazeboard",
+    "asar": false,
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "scripts/wallpaper.ps1",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Hazeboard",
+      "artifactName": "Hazeboard-Setup-${version}.${ext}"
+    }
   }
 }

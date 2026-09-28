@@ -157,9 +157,9 @@ function render(): void {
 
 function updateHint(): void {
   $('#hint').textContent = jiggle
-    ? 'drag to arrange  ·  drop a note outside to make a card  ·  esc to finish'
+    ? 'drag to arrange  ·  drop a note outside to make a panel  ·  esc to finish'
     : cards.length === 0
-      ? 'type below to make your first card  ·  esc to close'
+      ? 'type below to make your first panel  ·  esc to close'
       : 'click to tick  ·  hold to arrange  ·  right-click for colour  ·  esc to close';
 }
 
@@ -544,3 +544,4 @@ async function restyle(id: string, patch: Partial<NoteStyle>, persist: boolean):
 
 const w = window as unknown as Record<string, unknown>;
 w.__initOverlay = initOverlay;
+w.__focusNewPanel = (): void => { $<HTMLInputElement>("#newcard input").focus(); };

@@ -29,7 +29,7 @@ export function buildCard(card: Card, opts: CardOptions): HTMLElement {
   });
   header.append(brand, date);
   if (opts.mode === 'overlay') {
-    header.appendChild(removeButton(`Delete card${card.title ? `: ${card.title}` : ''}`, 'card-remove'));
+    header.appendChild(removeButton(`Delete panel${card.title ? `: ${card.title}` : ''}`, 'card-remove'));
   }
 
   const list = document.createElement('ul');
@@ -52,7 +52,7 @@ export function buildCard(card: Card, opts: CardOptions): HTMLElement {
     composer.className = 'composer';
     const input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = 'Add to this card...';
+    input.placeholder = 'Add to this panel...';
     input.autocomplete = 'off';
     input.spellcheck = false;
     composer.appendChild(input);
