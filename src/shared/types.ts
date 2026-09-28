@@ -143,6 +143,8 @@ export interface OverlayPayload {
   canvasH: number;
   cardW: number;
   backdrop: BackdropSettings;
+  /** Run the guided tutorial on this opening; null for a normal opening. */
+  tutorial: { hotkey: string } | null;
 }
 
 /**

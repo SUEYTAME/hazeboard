@@ -21,6 +21,18 @@
 
   <div id="hint"></div>
 
+  <!-- First-run tutorial. Each step advances when the user actually does the
+       thing it describes; overlay.ts owns the steps. -->
+  <div id="coach" hidden>
+    <div class="coach-step"></div>
+    <div class="coach-title"></div>
+    <div class="coach-body"></div>
+    <div class="coach-actions">
+      <button type="button" class="coach-skip">Skip tutorial</button>
+      <button type="button" class="coach-done" hidden>Done</button>
+    </div>
+  </div>
+
   <div id="popover" hidden>
     <div class="swatches"></div>
     <label class="intensity">

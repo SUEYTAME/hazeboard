@@ -12,13 +12,18 @@ log in — no process has to be running for you to see them.
    [latest release](https://github.com/SUEYTAME/hazeboard/releases/latest) and run it.
    The installer is not code-signed yet, so Windows may say *"Windows protected
    your PC"* — click **More info → Run anyway**.
-2. Hazeboard opens your board with a **Welcome** panel. From then on:
+2. Hazeboard opens your board with a **Welcome** panel and a six-step tutorial
+   that moves on as you try each thing (replay it any time: right-click the
+   tray icon → **Show tutorial**). From then on:
    - **Ctrl+Alt+W** (or clicking the tray icon) opens and closes the board.
    - Type into **New panel…** at the bottom to make a panel; type into a panel's
      own box to add a note to it.
    - Press **Esc** and your panels are saved into the desktop wallpaper.
 3. Hazeboard starts with Windows so the shortcut always works. Turn that off by
    right-clicking the tray icon and unticking **Start with Windows**.
+
+Not sure what to put on it? See **[ideas for using Hazeboard](docs/use-cases.md)**:
+to-do lists, shopping, study plans, reminders and more.
 
 ## How it works
 

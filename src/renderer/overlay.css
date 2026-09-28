@@ -190,3 +190,76 @@ li.ghost.will-detach {
   color: var(--ink-soft);
 }
 .intensity input { flex: 1 1 auto; accent-color: rgba(255, 186, 122, 0.95); }
+
+/* ----------------------------- tutorial coach ----------------------------- */
+
+/* Same material as the popover, docked just above the "New panel" box: panels
+   (the Welcome one, new ones) land in the right-hand column, and a coach at the
+   top was measured covering the very note step 1 asks you to click. */
+#coach {
+  position: absolute;
+  z-index: 60;
+  left: 50%;
+  bottom: 116px;
+  transform: translateX(-50%);
+  width: 460px;
+  padding: 18px 20px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--hairline);
+  background:
+    linear-gradient(160deg, rgba(255, 252, 248, 0.16), rgba(255, 248, 240, 0.07)),
+    linear-gradient(rgba(20, 16, 14, 0.6), rgba(20, 16, 14, 0.6));
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+  color: var(--ink);
+}
+#coach[hidden] { display: none; }
+
+.coach-step {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 186, 122, 0.95);
+  margin-bottom: 6px;
+}
+.coach-title { font-size: 19px; font-weight: 600; margin-bottom: 6px; }
+.coach-body { font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
+
+.coach-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+.coach-actions button {
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.coach-actions button:hover { background: rgba(255, 255, 255, 0.12); color: var(--ink); }
+.coach-actions .coach-done {
+  border-color: rgba(255, 186, 122, 0.6);
+  background: rgba(255, 186, 122, 0.22);
+  color: var(--ink);
+}
+.coach-actions [hidden] { display: none; }
+
+/* What the current step is asking you to touch. */
+.coach-target {
+  outline: 2px solid rgba(255, 186, 122, 0.85);
+  /* Inside the element: a note sits in a scrolling list that clips anything
+     drawn outside it, which hid the ring completely. */
+  outline-offset: -2px;
+  border-radius: 14px;
+  animation: coach-pulse 1.6s ease-in-out infinite;
+}
+@keyframes coach-pulse {
+  0%, 100% { outline-color: rgba(255, 186, 122, 0.85); }
+  50%      { outline-color: rgba(255, 186, 122, 0.25); }
+}

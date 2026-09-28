@@ -128,7 +128,7 @@ async function main() {
 
   const t0 = Date.now();
   await run(`window.__initOverlay(${JSON.stringify({
-    mode: 'overlay', cards: cards(), screenshotUrl, canvasW: W, canvasH: H, cardW: CARD_W, backdrop: DEFAULT_BACKDROP,
+    mode: 'overlay', cards: cards(), screenshotUrl, canvasW: W, canvasH: H, cardW: CARD_W, backdrop: DEFAULT_BACKDROP, tutorial: null,
   })})`);
   console.log(`init: ${Date.now() - t0}ms at ${W}x${H}`);
   await shot('overlay-view.png');
@@ -269,6 +269,77 @@ async function main() {
   await sleep(250);
   check(!cardById('card0001').notes.some((n) => n.id === 'n0000003'), 'x badge removed a note');
   await shot('overlay-final.png');
+
+  // 10. Tutorial. An empty board has no note to tick or panel to add to, so
+  //     the tour must start at "make your own panel" instead of pointing at nothing.
+  const payload = (cs, tutorial) => JSON.stringify({
+    mode: 'overlay', cards: cs, screenshotUrl, canvasW: W, canvasH: H, cardW: CARD_W,
+    backdrop: DEFAULT_BACKDROP, tutorial,
+  });
+  const coach = () => run(`({ hidden: document.getElementById('coach').hidden,
+    step: document.querySelector('#coach .coach-step').textContent,
+    target: document.querySelectorAll('.coach-target').length })`);
+  await run(`window.__initOverlay(${payload([], { hotkey: 'Ctrl+Alt+W' })})`);
+  let c = await coach();
+  check(!c.hidden && c.step === 'Step 3 of 6', `empty board starts the tutorial at step 3 (${c.step})`);
+
+  //     The full walk: every step advances only on its real gesture.
+  await run(`window.__initOverlay(${payload(cards(), { hotkey: 'Ctrl+Alt+W' })})`);
+  c = await coach();
+  check(!c.hidden && c.step === 'Step 1 of 6' && c.target === 1, `tutorial opens at step 1 with a highlight (${c.step}, ${c.target})`);
+  await shot('tutorial-step1.png');
+
+  const [n1x, n1y] = await run(`window.__center('#field .note')`);
+  await run(`(window.__ev('pointerdown', ${n1x}, ${n1y}), window.__ev('pointerup', ${n1x}, ${n1y}, true),
+             document.elementFromPoint(${n1x}, ${n1y}).dispatchEvent(new MouseEvent('click', { bubbles: true })), 1)`);
+  await sleep(250);
+  check((await coach()).step === 'Step 2 of 6', 'ticking a note advanced to step 2');
+
+  await run(`(() => { const i = document.querySelector('#field .composer input');
+    i.value = 'Tutorial note'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);
+  await sleep(250);
+  check((await coach()).step === 'Step 3 of 6', 'adding a note advanced to step 3');
+
+  await run(`(() => { const i = document.querySelector('#newcard input');
+    i.value = 'Tutorial panel'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);
+  await sleep(250);
+  check((await coach()).step === 'Step 4 of 6', 'making a panel advanced to step 4');
+
+  const [bx, by] = await run(`window.__center('#field .card > header .brand')`);
+  await run(`window.__ev('pointerdown', ${bx}, ${by})`);
+  await sleep(650);
+  await run(`window.__ev('pointermove', ${bx - 120}, ${by + 60}, true)`);
+  await run(`window.__ev('pointerup', ${bx - 120}, ${by + 60}, true)`);
+  await sleep(250);
+  check((await coach()).step === 'Step 5 of 6', 'holding and dragging a panel advanced to step 5');
+
+  await run(`(() => { document.querySelector('#field .note').dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); return 1; })()`);
+  await sleep(60);
+  check((await coach()).step === 'Step 5 of 6', 'opening the colour popover alone does not advance');
+  await run(`window.__click('.swatch[data-tint="green"]')`);
+  await sleep(250);
+  c = await coach();
+  check(c.step === 'Step 6 of 6' && c.target === 0, `picking a colour advanced to step 6 (${c.step})`);
+  await shot('tutorial-step6.png');
+
+  closed = false;
+  await run(`window.__key('Escape')`); // popover
+  await run(`window.__key('Escape')`); // jiggle
+  await run(`window.__key('Escape')`); // close
+  await sleep(100);
+  c = await coach();
+  check(closed && c.hidden && c.target === 0, 'esc on the last step finished the tutorial and closed the board');
+
+  //     Skip ends it at any step.
+  await run(`window.__initOverlay(${payload(cards(), { hotkey: 'Ctrl+Alt+W' })})`);
+  await run(`window.__click('#coach .coach-skip')`);
+  c = await coach();
+  check(c.hidden && c.target === 0, 'skip hides the coach and the highlight');
+
+  //     A normal opening never shows it.
+  await run(`window.__initOverlay(${payload(cards(), null)})`);
+  check((await coach()).hidden, 'normal opening has no tutorial');
 
   console.log('console errors:', errors.length ? errors : 'none');
   console.log(`${failures.length} failure(s); wrote tmp/overlay-*.png`);

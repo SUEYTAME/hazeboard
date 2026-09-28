@@ -124,6 +124,8 @@ async function initOverlay(payload: OverlayPayload): Promise<void> {
   closePopover();
   setJiggle(false);
   render();
+  if (payload.tutorial) startTutorial(payload.tutorial.hotkey);
+  else endTutorial();
   await settled();
 }
 
@@ -153,6 +155,8 @@ function render(): void {
 
   document.body.classList.toggle('is-empty', cards.length === 0);
   updateHint();
+  // render() rebuilds every card, so the step's highlight must be re-applied.
+  highlightTarget();
 }
 
 function updateHint(): void {
@@ -211,7 +215,7 @@ function wire(): void {
     const text = input.value.trim();
     if (!cardEl?.dataset.id || !text) return;
     input.value = '';
-    void apply(api().addNote(cardEl.dataset.id, text));
+    void apply(api().addNote(cardEl.dataset.id, text)).then(() => { tutorialEvent('addNote'); });
   });
 
   const newCard = $<HTMLInputElement>('#newcard input');
@@ -220,13 +224,16 @@ function wire(): void {
     const text = newCard.value.trim();
     if (!text) return;
     newCard.value = '';
-    void apply(api().addCard(text));
+    void apply(api().addCard(text)).then(() => { tutorialEvent('addCard'); });
   });
+
+  $('#coach .coach-skip').addEventListener('click', endTutorial);
+  $('#coach .coach-done').addEventListener('click', endTutorial);
 
   // Clicking the wallpaper leaves jiggle mode, like tapping the home screen.
   document.body.addEventListener('pointerdown', (e) => {
     const t = e.target as HTMLElement;
-    if (t.closest('.card, #popover, #newcard')) return;
+    if (t.closest('.card, #popover, #newcard, #coach')) return;
     closePopover();
     if (jiggle && !drag) setJiggle(false);
   });
@@ -237,6 +244,7 @@ function wire(): void {
     if (!$('#popover').hidden) { closePopover(); return; }
     if (drag) { cancelDrag(); return; }
     if (jiggle) { setJiggle(false); return; }
+    tutorialEvent('close');
     api().close();
   });
 
@@ -337,6 +345,7 @@ async function onClick(e: MouseEvent): Promise<void> {
   if (t.closest('.composer')) return;
   if (row?.dataset.id && !jiggle) {
     await apply(api().toggleNote(row.dataset.id));
+    tutorialEvent('toggle');
   }
 }
 
@@ -446,6 +455,7 @@ async function endDrag(_x: number, _y: number): Promise<void> {
 
   if (d.kind === 'card') {
     await apply(api().moveCard(id, left / W, top / H));
+    tutorialEvent('moveCard');
     return;
   }
 
@@ -486,7 +496,7 @@ function wirePopover(): void {
     const b = (e.target as HTMLElement).closest<HTMLElement>('.swatch');
     const tint = b?.dataset.tint as TintKey | undefined;
     if (!tint || !popoverNoteId) return;
-    void restyle(popoverNoteId, { tint }, true);
+    void restyle(popoverNoteId, { tint }, true).then(() => { tutorialEvent('colour'); });
   });
 
   const slider = pop.querySelector<HTMLInputElement>('input[type=range]')!;
@@ -540,6 +550,118 @@ async function restyle(id: string, patch: Partial<NoteStyle>, persist: boolean):
     s.classList.toggle('active', s.dataset.tint === note.style.tint);
   });
   if (persist) cards = await api().setNoteStyle(id, patch);
+}
+
+/* ------------------------------------------------------------------ *
+ *  Tutorial                                                           *
+ * ------------------------------------------------------------------ */
+
+/**
+ * First-run tutorial. A step never advances on a "Next" button: it waits for
+ * the user to do the thing it describes, so finishing the tour means having
+ * done every gesture once. Steps whose target does not exist (ticking a note
+ * on an empty board) are skipped rather than pointing at nothing.
+ */
+type TutorialEvent = 'toggle' | 'addNote' | 'addCard' | 'moveCard' | 'colour' | 'close';
+
+interface TutorialStep {
+  event: TutorialEvent;
+  title: string;
+  body: (hotkey: string) => string;
+  /** What to highlight; null only for the final step, which needs none. */
+  target: () => HTMLElement | null;
+}
+
+const STEPS: TutorialStep[] = [
+  {
+    event: 'toggle',
+    title: 'Tick something off',
+    body: () => 'Click a note to mark it done. Click it again to bring it back.',
+    target: () => document.querySelector<HTMLElement>('#field .note'),
+  },
+  {
+    event: 'addNote',
+    title: 'Add a note',
+    body: () => 'Type something in the "Add to this panel" box and press Enter.',
+    target: () => document.querySelector<HTMLElement>('#field .composer input'),
+  },
+  {
+    event: 'addCard',
+    title: 'Make your own panel',
+    body: () => 'Type a first note in "New panel" at the bottom and press Enter. '
+      + 'Each panel is its own list: today, groceries, ideas...',
+    target: () => document.querySelector<HTMLElement>('#newcard input'),
+  },
+  {
+    event: 'moveCard',
+    title: 'Put it where you want',
+    body: () => 'Press and hold a panel for half a second until it wiggles, then drag it anywhere.',
+    target: () => document.querySelector<HTMLElement>('#field .card'),
+  },
+  {
+    event: 'colour',
+    title: 'Give it a colour',
+    body: () => 'Right-click any note and pick a colour. The slider sets how strong it is.',
+    target: () => document.querySelector<HTMLElement>('#field .note'),
+  },
+  {
+    event: 'close',
+    title: 'Save it to your desktop',
+    body: (hotkey) => 'Press Esc. Your panels become part of your wallpaper, so they stay '
+      + `on your desktop even when Hazeboard is closed. Press ${hotkey} to open the board again.`,
+    target: () => null,
+  },
+];
+
+let tutorialStep: number | null = null;
+let tutorialHotkey = '';
+
+/** The first step from `i` on that has something to point at. */
+function firstAvailable(i: number): number {
+  let k = i;
+  while (k < STEPS.length - 1 && !STEPS[k].target()) k++;
+  return k;
+}
+
+function startTutorial(hotkey: string): void {
+  tutorialHotkey = hotkey;
+  tutorialStep = firstAvailable(0);
+  showCoach();
+}
+
+function endTutorial(): void {
+  tutorialStep = null;
+  $('#coach').hidden = true;
+  highlightTarget();
+}
+
+function tutorialEvent(ev: TutorialEvent): void {
+  if (tutorialStep === null || STEPS[tutorialStep].event !== ev) return;
+  if (tutorialStep === STEPS.length - 1) {
+    endTutorial();
+    return;
+  }
+  tutorialStep = firstAvailable(tutorialStep + 1);
+  showCoach();
+}
+
+function showCoach(): void {
+  if (tutorialStep === null) return;
+  const step = STEPS[tutorialStep];
+  const last = tutorialStep === STEPS.length - 1;
+  $('#coach .coach-step').textContent = `Step ${tutorialStep + 1} of ${STEPS.length}`;
+  $('#coach .coach-title').textContent = step.title;
+  $('#coach .coach-body').textContent = step.body(tutorialHotkey);
+  $('#coach .coach-skip').hidden = last;
+  $('#coach .coach-done').hidden = !last;
+  $('#coach').hidden = false;
+  highlightTarget();
+}
+
+function highlightTarget(): void {
+  document.querySelectorAll('.coach-target').forEach((el) => el.classList.remove('coach-target'));
+  if (tutorialStep === null) return;
+  STEPS[tutorialStep].target()?.classList.add('coach-target');
 }
 
 const w = window as unknown as Record<string, unknown>;

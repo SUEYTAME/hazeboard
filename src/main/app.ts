@@ -9,6 +9,8 @@ import { callPage, CARD_W } from './render';
 import { DEFAULT_BACKDROP, type Card, type NoteStyle, type OverlayPayload } from '../shared/types';
 
 const HOTKEY = 'Control+Alt+W';
+const HOTKEY_LABEL = HOTKEY.replace(/Control/, 'Ctrl');
+const USE_CASES_URL = 'https://github.com/SUEYTAME/hazeboard/blob/main/docs/use-cases.md';
 
 let tray: Tray | null = null;
 let overlay: BrowserWindow | null = null;
@@ -102,7 +104,16 @@ function notify(body: string): void {
   new Notification({ title: 'Hazeboard', body }).show();
 }
 
-async function openOverlay(focusNewPanel = false): Promise<void> {
+interface OpenOptions {
+  /** Put the cursor in the "New panel" box. */
+  focusNewPanel?: boolean;
+  /** Run the guided tutorial. */
+  tutorial?: boolean;
+}
+
+async function openOverlay(opts: OpenOptions = {}): Promise<void> {
+  // Already open: capturing now would photograph the board itself.
+  if (overlay?.isVisible()) { overlay.focus(); return; }
   if (opening) return;
   opening = true;
   try {
@@ -132,6 +143,7 @@ async function openOverlay(focusNewPanel = false): Promise<void> {
       canvasH,
       cardW: CARD_W,
       backdrop: DEFAULT_BACKDROP,
+      tutorial: opts.tutorial ? { hotkey: HOTKEY_LABEL } : null,
     };
     await callPage(overlay, `window.__initOverlay(${JSON.stringify(payload)})`);
 
@@ -142,7 +154,7 @@ async function openOverlay(focusNewPanel = false): Promise<void> {
     overlay.setAlwaysOnTop(true, 'screen-saver');
     overlay.moveTop();
     overlay.focus();
-    if (focusNewPanel) await callPage(overlay, 'window.__focusNewPanel()');
+    if (opts.focusNewPanel) await callPage(overlay, 'window.__focusNewPanel()');
   } catch (err) {
     const msg = (err as Error).message;
     console.error(`hazeboard: could not open overlay: ${msg}`);
@@ -185,7 +197,9 @@ function buildTray(): void {
   tray.setContextMenu(Menu.buildFromTemplate([
     // The accelerator is shown, not registered: globalShortcut owns the key.
     { label: 'Open my board', accelerator: HOTKEY, registerAccelerator: false, click: () => { void openOverlay(); } },
-    { label: 'New panel', click: () => { void openOverlay(true); } },
+    { label: 'New panel', click: () => { void openOverlay({ focusNewPanel: true }); } },
+    { label: 'Show tutorial', click: () => { void openOverlay({ tutorial: true }); } },
+    { label: 'Ideas for using Hazeboard', click: () => { void shell.openExternal(USE_CASES_URL); } },
     { type: 'separator' },
     {
       label: 'Start with Windows',
@@ -274,7 +288,7 @@ export function startApp(): void {
     notify(`${key} is taken by another app. Click the Hazeboard icon in the taskbar tray to open your board.`);
   }
 
-  if (firstRun) void openOverlay();
+  if (firstRun) void openOverlay({ tutorial: true });
 
   app.on('will-quit', () => globalShortcut.unregisterAll());
 
