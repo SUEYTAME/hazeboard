@@ -1,0 +1,76 @@
+{
+  "format": "hazeboard-panels",
+  "version": 1,
+  "panels": [
+    {
+      "title": "Exam week",
+      "x": 0.36,
+      "y": 0.14,
+      "style": {
+        "tint": "blue",
+        "glass": 0.35
+      },
+      "notes": [
+        {
+          "text": "Chapter 4 exercises",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        },
+        {
+          "text": "Review the lab report",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        },
+        {
+          "text": "Practice exam on Thursday",
+          "done": false,
+          "style": {
+            "tint": "orange",
+            "intensity": 0.5
+          }
+        },
+        {
+          "text": "Sleep before the exam!",
+          "done": false,
+          "style": {
+            "tint": "green",
+            "intensity": 0.4
+          }
+        }
+      ]
+    },
+    {
+      "title": "Ask the professor",
+      "x": 0.68,
+      "y": 0.14,
+      "style": {
+        "tint": "purple",
+        "glass": 0.1
+      },
+      "notes": [
+        {
+          "text": "Question 7 on the practice sheet",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        },
+        {
+          "text": "Is chapter 5 on the exam?",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        }
+      ]
+    }
+  ]
+}

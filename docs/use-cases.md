@@ -89,6 +89,23 @@ Clean it up once a week.
 > - Birthday present for Luis
 > - Try the new pasta recipe
 
+## Share panels with someone
+
+Made a panel layout that works? Send it.
+
+- **One panel:** right-click it → **Share this panel…**
+- **Everything:** right-click the Hazeboard tray icon → **Share my board…**
+
+Either way you save a small `.hazeboard` file you can email or send in a
+chat. Whoever opens it (double-click, or tray icon → **Import panels…**) is
+asked before anything is added, and their own panels are never changed.
+The file contains your notes, so only share what you'd show that person.
+
+**Try one:** download an example and double-click it.
+
+- [Study week](https://github.com/SUEYTAME/hazeboard/raw/main/examples/study-week.hazeboard) — an exam-week list and questions for the professor
+- [Weekly planner](https://github.com/SUEYTAME/hazeboard/raw/main/examples/weekly-planner.hazeboard) — this week, waiting on, and groceries
+
 ---
 
 ## Tips

@@ -36,6 +36,7 @@ interface HazeboardApi {
   setNoteStyle(noteId: string, style: Partial<NoteStyle>): Promise<Card[]>;
   setCardTitle(id: string, title: string): Promise<Card[]>;
   setCardStyle(id: string, style: Partial<CardStyle>): Promise<Card[]>;
+  sharePanel(id: string): Promise<void>;
   close(): void;
 }
 
@@ -731,6 +732,12 @@ function wirePanelMenu(): void {
   // Preview every tick, persist once on release (same as the note slider).
   slider.addEventListener('input', () => { void restylePanel({ glass: Number(slider.value) }, false); });
   slider.addEventListener('change', () => { void restylePanel({ glass: Number(slider.value) }, true); });
+
+  menu.querySelector<HTMLElement>('.pm-share')!.addEventListener('click', () => {
+    const id = menuCardId;
+    closePanelMenu();
+    if (id) void api().sharePanel(id);
+  });
 
   menu.querySelector<HTMLElement>('.pm-rename')!.addEventListener('click', () => {
     const id = menuCardId;

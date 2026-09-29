@@ -352,6 +352,7 @@ li.ghost.will-detach {
 #panelmenu[hidden] { display: none; }
 
 #panelmenu .pm-rename,
+#panelmenu .pm-share,
 #panelmenu .pm-delete {
   display: block;
   width: 100%;
@@ -366,6 +367,7 @@ li.ghost.will-detach {
   cursor: pointer;
 }
 #panelmenu .pm-rename:hover,
+#panelmenu .pm-share:hover,
 #panelmenu .pm-delete:hover { background: rgba(255, 255, 255, 0.1); }
 #panelmenu .pm-delete { margin-top: 8px; color: hsl(3, 85%, 76%); }
 #panelmenu .pm-delete.armed { background: hsla(3, 78%, 50%, 0.35); color: #fff; }

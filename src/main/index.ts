@@ -5,6 +5,7 @@ import * as store from './store';
 import { composeAndApply, composeToFile } from './compose';
 import { listMonitors } from './wallpaper';
 import { startApp, setAutostart, autostartEnabled } from './app';
+import { findShareFile } from './share';
 
 function argv(): string[] {
   // packaged: [exe, ...args]   dev: [electron, appPath, ...args]
@@ -183,7 +184,8 @@ function exitWhenFlushed(code: number): void {
 // A CLI run alongside the resident tray app would otherwise fight over one
 // Chromium cache directory and spray "Unable to create cache" on stderr.
 // Give short-lived CLI instances their own session dir.
-if (argv()[0] && argv()[0] !== 'ui') {
+// A double-clicked .hazeboard file is the app, not a CLI run.
+if (argv()[0] && argv()[0] !== 'ui' && !findShareFile(argv())) {
   app.setPath('sessionData', path.join(app.getPath('userData'), 'cli-session'));
 }
 
@@ -191,10 +193,12 @@ app.whenReady().then(async () => {
   const args = argv();
   const cmd = args[0];
 
-  // No command means "be the app": tray, hotkey, editor. Everything else is a
-  // one-shot CLI invocation that exits when it is done.
-  if (!cmd || cmd === 'ui') {
-    startApp();
+  // No command means "be the app": tray, hotkey, editor. So does a .hazeboard
+  // file, which Windows passes when one is double-clicked. Everything else is
+  // a one-shot CLI invocation that exits when it is done.
+  const shareFile = findShareFile(args);
+  if (!cmd || cmd === 'ui' || shareFile) {
+    startApp(shareFile ?? undefined);
     return;
   }
 

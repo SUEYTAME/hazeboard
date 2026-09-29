@@ -20,8 +20,12 @@ log in — no process has to be running for you to see them.
      own box to add a note to it.
    - Or press on an empty part of the board and drag to put a new panel
      exactly there.
-   - Right-click a panel to rename it, colour it, make it clear or solid, or
-     delete it. Right-click a note to colour just that note.
+   - Right-click a panel to rename it, colour it, make it clear or solid,
+     share it, or delete it. Right-click a note to colour just that note.
+   - Share panels as a `.hazeboard` file (right-click a panel → **Share this
+     panel…**, or tray icon → **Share my board…**). Double-click a
+     `.hazeboard` file someone sent you to add its panels to your board — you
+     are asked first, and your own panels are never changed.
    - Press **Esc** and your panels are saved into the desktop wallpaper.
 3. Hazeboard starts with Windows so the shortcut always works. Turn that off by
    right-clicking the tray icon and unticking **Start with Windows**.

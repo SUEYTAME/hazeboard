@@ -1,0 +1,103 @@
+{
+  "format": "hazeboard-panels",
+  "version": 1,
+  "panels": [
+    {
+      "title": "This week",
+      "x": 0.36,
+      "y": 0.12,
+      "style": {
+        "tint": null,
+        "glass": 0.9
+      },
+      "notes": [
+        {
+          "text": "Finish the budget draft",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        },
+        {
+          "text": "Prepare Thursday slides",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        },
+        {
+          "text": "Call the bank",
+          "done": false,
+          "style": {
+            "tint": "red",
+            "intensity": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "title": "Waiting on",
+      "x": 0.68,
+      "y": 0.12,
+      "style": {
+        "tint": "orange",
+        "glass": 0.35
+      },
+      "notes": [
+        {
+          "text": "Carlos: signed contract",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        },
+        {
+          "text": "IT: new laptop",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        }
+      ]
+    },
+    {
+      "title": "Groceries",
+      "x": 0.68,
+      "y": 0.5,
+      "style": {
+        "tint": "green",
+        "glass": 0.35
+      },
+      "notes": [
+        {
+          "text": "Coffee",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        },
+        {
+          "text": "Eggs",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        },
+        {
+          "text": "Dish soap",
+          "done": false,
+          "style": {
+            "tint": "graphite",
+            "intensity": 0.32
+          }
+        }
+      ]
+    }
+  ]
+}

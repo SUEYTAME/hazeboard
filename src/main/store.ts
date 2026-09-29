@@ -6,6 +6,7 @@ import {
   STATE_VERSION, DEFAULT_STYLE, normalizeStyle, DEFAULT_CARD_STYLE, normalizeCardStyle,
   type BoardState, type Card, type CardStyle, type Note, type NoteStyle,
 } from '../shared/types';
+import type { SharedPanel } from './share';
 
 export function dataDir(): string {
   const dir = app.getPath('userData');
@@ -314,6 +315,28 @@ export function setCardStyle(idPrefix: string, patch: Partial<CardStyle>): Card 
   card.style = normalizeCardStyle({ ...card.style, ...patch });
   save(state);
   return card;
+}
+
+/**
+ * Add panels from a .hazeboard file. Every panel and note gets a fresh id, so
+ * importing the same file twice gives two copies instead of a collision, and
+ * nothing already on the board is touched.
+ */
+export function importPanels(panels: SharedPanel[]): Card[] {
+  const state = load();
+  const now = new Date().toISOString();
+  const added: Card[] = panels.map((p) => ({
+    id: newId(),
+    title: p.title,
+    notes: p.notes.map((n) => ({ id: newId(), text: n.text, done: n.done, createdAt: now, style: { ...n.style } })),
+    x: clamp01(p.x),
+    y: clamp01(p.y),
+    createdAt: now,
+    style: { ...p.style },
+  }));
+  state.cards.push(...added);
+  save(state);
+  return added;
 }
 
 /** Blank or whitespace-only clears the title, so the header shows the brand again. */

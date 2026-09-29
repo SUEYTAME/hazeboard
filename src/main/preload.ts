@@ -28,5 +28,7 @@ contextBridge.exposeInMainWorld('hazeboard', {
     ipcRenderer.invoke('gb:setCardTitle', id, title),
   setCardStyle: (id: string, style: Partial<CardStyle>): Promise<Card[]> =>
     ipcRenderer.invoke('gb:setCardStyle', id, style),
+  /** Opens a Save dialog in the main process; resolves when it is done. */
+  sharePanel: (id: string): Promise<void> => ipcRenderer.invoke('gb:sharePanel', id),
   close: (): void => ipcRenderer.send('gb:close'),
 });

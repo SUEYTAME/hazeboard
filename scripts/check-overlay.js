@@ -56,6 +56,8 @@ const cardById = (id) => store.load().cards.find((c) => c.id === id);
 
 let win;
 let closed = false;
+/** Panels the page asked to share; the real handler opens a Save dialog. */
+const sharedIds = [];
 
 app.whenReady().then(main).catch((err) => {
   console.error(`check failed: ${err.message}`);
@@ -79,6 +81,7 @@ async function main() {
   ipcMain.handle('gb:setNoteStyle', (_e, n, s) => mutate(() => store.setNoteStyle(n, s)));
   ipcMain.handle('gb:setCardTitle', (_e, id, t) => mutate(() => store.setCardTitle(id, t)));
   ipcMain.handle('gb:setCardStyle', (_e, id, s) => mutate(() => store.setCardStyle(id, s)));
+  ipcMain.handle('gb:sharePanel', (_e, id) => { sharedIds.push(id); });
   ipcMain.on('gb:close', () => { closed = true; });
 
   const display = screen.getPrimaryDisplay();
@@ -441,6 +444,15 @@ async function main() {
     i.value = '   '; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);
   await sleep(250);
   check(cardById(did).title === null, 'a blank name clears the title');
+
+  //     Share this panel hands the right id to the main process.
+  const [sx, sy] = await run(`window.__center('.card[data-id="${did}"] > header .brand')`);
+  await run(`(() => { document.querySelector('.card[data-id="${did}"] > header .brand').dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: ${sx}, clientY: ${sy} })); return 1; })()`);
+  await run(`window.__click('#panelmenu .pm-share')`);
+  await sleep(100);
+  check(sharedIds.length === 1 && sharedIds[0] === did && await run(`document.getElementById('panelmenu').hidden`),
+    'share this panel asked the main process to save that panel');
 
   //     Delete needs two clicks.
   const [dx2, dy2] = await run(`window.__center('.card[data-id="${did}"] > header .brand')`);

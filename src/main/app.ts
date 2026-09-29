@@ -1,12 +1,17 @@
 import {
   app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, nativeImage, screen, shell,
-  desktopCapturer, Notification,
+  desktopCapturer, Notification, dialog,
 } from 'electron';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as store from './store';
 import { composeAndApply } from './compose';
 import { callPage, CARD_W } from './render';
 import { DEFAULT_BACKDROP, type Card, type CardStyle, type NoteStyle, type OverlayPayload } from '../shared/types';
+import {
+  SHARE_EXT, MAX_FILE_BYTES, ShareError, parseShared, toShared, shareFileName, findShareFile,
+  type SharedPanel,
+} from './share';
 
 const HOTKEY = 'Control+Alt+W';
 const HOTKEY_LABEL = HOTKEY.replace(/Control/, 'Ctrl');
@@ -186,6 +191,100 @@ async function flush(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ *
+ *  Share / import (.hazeboard files)                                  *
+ * ------------------------------------------------------------------ */
+
+const SHARE_FILTERS = [{ name: 'Hazeboard panels', extensions: [SHARE_EXT] }];
+
+/**
+ * Validate, then ASK before adding anything: a .hazeboard file can come from
+ * anyone, and double-clicking it must never change the board unseen. Returns
+ * whether panels were added. Problems are shown in a dialog, in plain words,
+ * because the person just double-clicked a file and is waiting for a reaction.
+ */
+async function importFile(file: string): Promise<boolean> {
+  const name = path.basename(file);
+  let panels: SharedPanel[];
+  try {
+    const size = fs.statSync(file).size;
+    if (size > MAX_FILE_BYTES) {
+      throw new ShareError(`It is larger than ${Math.round(MAX_FILE_BYTES / 1024)} KB, too big to be a Hazeboard panels file.`);
+    }
+    panels = parseShared(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    const detail = err instanceof ShareError ? err.message : `It could not be opened: ${(err as Error).message}`;
+    await dialog.showMessageBox({
+      type: 'warning', title: 'Hazeboard', buttons: ['OK'],
+      message: `"${name}" could not be added.`, detail,
+    });
+    return false;
+  }
+
+  const n = panels.length;
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    title: 'Hazeboard',
+    message: `Add ${n} panel${n === 1 ? '' : 's'} from "${name}" to your board?`,
+    detail: 'Your existing panels are not changed. You can move or delete the new ones afterwards.',
+    buttons: ['Add panels', 'Cancel'],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+  });
+  if (response !== 0) return false;
+
+  store.importPanels(panels);
+  dirty = true;
+  return true;
+}
+
+/** Show what was just imported: the board opens with the new panels on it. */
+async function importAndShow(file: string): Promise<void> {
+  if (!(await importFile(file))) return;
+  if (overlay?.isVisible()) overlay.hide();
+  await openOverlay();
+}
+
+async function importViaDialog(): Promise<void> {
+  const r = await dialog.showOpenDialog({ title: 'Import panels', properties: ['openFile'], filters: SHARE_FILTERS });
+  if (r.canceled || !r.filePaths[0]) return;
+  await importAndShow(r.filePaths[0]);
+}
+
+/**
+ * Save panels (one, by id, or the whole board when ids is null) to a file the
+ * user picks. The dialog is parented to the board when it is open: the board
+ * is a topmost fullscreen window and an unowned dialog would open behind it.
+ */
+async function shareCards(ids: string[] | null): Promise<void> {
+  try {
+    const all = store.load().cards;
+    const chosen = ids ? all.filter((c) => ids.includes(c.id)) : all;
+    if (chosen.length === 0) {
+      notify('There are no panels to share yet.');
+      return;
+    }
+    const one = ids !== null && chosen.length === 1 ? chosen[0] : null;
+    const base = one ? (one.title ?? one.notes[0]?.text ?? 'Hazeboard panel') : 'My Hazeboard';
+    const opts: Electron.SaveDialogOptions = {
+      title: one ? 'Share this panel' : 'Share my board',
+      buttonLabel: 'Save',
+      defaultPath: path.join(app.getPath('documents'), shareFileName(base.slice(0, 40))),
+      filters: SHARE_FILTERS,
+    };
+    const parent = overlay?.isVisible() ? overlay : null;
+    const r = parent ? await dialog.showSaveDialog(parent, opts) : await dialog.showSaveDialog(opts);
+    if (r.canceled || !r.filePath) return;
+    fs.writeFileSync(r.filePath, `${JSON.stringify(toShared(chosen), null, 2)}\n`);
+    notify(`Saved "${path.basename(r.filePath)}". Whoever you send it to will see the notes on it.`);
+  } catch (err) {
+    const msg = (err as Error).message;
+    console.error(`hazeboard: share failed: ${msg}`);
+    notify(`Could not save the file: ${msg}`);
+  }
+}
+
+/* ------------------------------------------------------------------ *
  *  Tray / IPC                                                         *
  * ------------------------------------------------------------------ */
 
@@ -200,6 +299,9 @@ function buildTray(): void {
     { label: 'New panel', click: () => { void openOverlay({ focusNewPanel: true }); } },
     { label: 'Show tutorial', click: () => { void openOverlay({ tutorial: true }); } },
     { label: 'Ideas for using Hazeboard', click: () => { void shell.openExternal(USE_CASES_URL); } },
+    { type: 'separator' },
+    { label: 'Share my board...', click: () => { void shareCards(null); } },
+    { label: 'Import panels...', click: () => { void importViaDialog(); } },
     { type: 'separator' },
     {
       label: 'Start with Windows',
@@ -263,17 +365,28 @@ function wireIpc(): void {
     mutate(() => store.setCardStyle(id, style)));
   ipcMain.handle('gb:setNoteStyle', (_e, noteId: string, style: Partial<NoteStyle>) =>
     mutate(() => store.setNoteStyle(noteId, style)));
+  ipcMain.handle('gb:sharePanel', (_e, id: string) => shareCards([id]));
   ipcMain.on('gb:close', () => { overlay?.hide(); });
 }
 
-export function startApp(): void {
+/**
+ * @param importOnLaunch a .hazeboard file Hazeboard was opened with (double-
+ *   clicked in Explorer while Hazeboard was not running yet).
+ */
+export function startApp(importOnLaunch?: string): void {
   // Second launch just pops the board of the instance already running.
   if (!app.requestSingleInstanceLock()) {
     app.exit(0);
     return;
   }
   // Opening Hazeboard again from the Start menu shows the board, never a no-op.
-  app.on('second-instance', () => { void openOverlay(); });
+  // Double-clicking a .hazeboard file while it runs arrives here too: Windows
+  // starts a second copy with the file, which hands its command line over.
+  app.on('second-instance', (_e, commandLine) => {
+    const file = findShareFile(commandLine);
+    if (file) void importAndShow(file);
+    else void openOverlay();
+  });
 
   // Windows only shows toasts for an app with an AppUserModelID. Same value as
   // build.appId in package.json, which the installer registers.
@@ -292,7 +405,15 @@ export function startApp(): void {
     notify(`${key} is taken by another app. Click the Hazeboard icon in the taskbar tray to open your board.`);
   }
 
-  if (firstRun) void openOverlay({ tutorial: true });
+  if (importOnLaunch) {
+    void (async () => {
+      const added = await importFile(importOnLaunch);
+      if (firstRun) await openOverlay({ tutorial: true });
+      else if (added) await openOverlay();
+    })();
+  } else if (firstRun) {
+    void openOverlay({ tutorial: true });
+  }
 
   app.on('will-quit', () => globalShortcut.unregisterAll());
 
