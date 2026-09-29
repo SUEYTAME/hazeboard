@@ -1,7 +1,7 @@
 import { BrowserWindow, nativeImage } from 'electron';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
-import type { Card, Geometry, WallpaperPayload } from '../shared/types';
+import { DEFAULT_CARD_STYLE, type Card, type Geometry, type WallpaperPayload } from '../shared/types';
 import { CARD_W, SHADOW_ROOM, DIP_GRID, pinCard } from '../shared/layout';
 import { footerFor } from '../shared/footer';
 
@@ -121,7 +121,7 @@ function payloadFor(card: Card, backgroundUrl: string, geometry: Geometry): Wall
  */
 export async function renderWallpaperPng(cards: Card[], backgroundUrl: string, layout: Layout): Promise<Buffer> {
   const scale = layout.scaleFactor || 1;
-  const probe: Card = cards[0] ?? { id: '', title: null, notes: [], x: 0, y: 0, createdAt: '' };
+  const probe: Card = cards[0] ?? { id: '', title: null, notes: [], x: 0, y: 0, createdAt: '', style: DEFAULT_CARD_STYLE };
   const measuring = geometryFor(layout, probe, null);
   // A frameless window on Windows comes out 1 DIP larger than the content
   // size asked for (measured: 604x892 requested, 605x893 reported, viewport

@@ -39,24 +39,24 @@ find it on your desktop without reading.
 
 Students: one panel per subject, or one panel for the week before an exam.
 
-> - Exam week:
+> **EXAM WEEK**
 > - Chapter 4 exercises
 > - Review the lab report
 > - Ask the professor about question 7
 
-**Tip:** a first note like *"Exam week:"* works as a label, so you can tell
-your panels apart at a glance.
+**Tip:** give each panel a name so you can tell them apart at a glance:
+right-click the panel → **Rename**.
 
 ## Work: doing and waiting-on
 
 Two panels side by side: what you're doing, and what you're waiting for from
 other people. The second one is the list people forget to keep.
 
-> - Doing:
+> **DOING**
 > - Finish the budget draft
 > - Prepare Thursday's slides
 
-> - Waiting on:
+> **WAITING ON**
 > - Carlos: signed contract
 > - IT: new laptop
 
@@ -94,8 +94,15 @@ Clean it up once a week.
 ## Tips
 
 - **Colours mean what you want them to.** For example: red for urgent, green
-  for personal, blue for work. Right-click a note to pick one; the slider sets
-  how strong it is.
+  for personal, blue for work. Right-click a **note** to colour that note, or
+  right-click the **panel** (its name or an empty part of it) to colour the
+  whole panel.
+- **See-through or solid.** Right-click a panel and pick **Clear**, **Frosted**
+  or **Solid**, or use the slider in between. Solid is easiest to read over a
+  busy wallpaper.
+- **Put a panel exactly where you want it.** Press on an empty part of the
+  board and drag: a dashed box shows where it goes. Let go, type its first
+  note and press Enter.
 - **Move panels around.** Hold a panel for half a second until the board
   wiggles, then drag it. Click empty space when you're done.
 - **Make a panel from a note.** While the board wiggles, drag a note out into
@@ -103,7 +110,8 @@ Clean it up once a week.
 - **Keep panels away from your desktop icons.** The right-hand side of the
   screen is usually free.
 - **Remove things.** While the board wiggles, use the small **×** on a note or
-  on a panel.
+  on a panel, or right-click a panel → **Delete panel** (click twice — it can't
+  be undone).
 - **Mind what you write.** Your panels are part of your wallpaper, so anyone
   who can see your desktop — including people watching you share your whole
   screen — can read them. Don't put passwords or private details on them.

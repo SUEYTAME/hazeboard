@@ -48,12 +48,17 @@ html, body {
 
   /* Scrim first, then the warm gradient on top of it. The scrim is what keeps
      white text readable when the wallpaper underneath happens to be bright. */
+  /* --gk scales the whole material: glass / DEFAULT_GLASS, set per panel by
+     applyCardStyle. At 1 every value below is the original look exactly
+     (0.16 / 0.07 / 0.26 and a 44px blur); alphas past 1 simply clamp. */
   background:
-    linear-gradient(160deg, var(--glass-top), var(--glass-bottom)),
-    linear-gradient(var(--glass-scrim), var(--glass-scrim));
+    linear-gradient(160deg,
+      rgba(255, 252, 248, calc(0.16 * var(--gk, 1))),
+      rgba(255, 248, 240, calc(0.07 * var(--gk, 1)))),
+    linear-gradient(rgba(28, 22, 18, calc(0.26 * var(--gk, 1))), rgba(28, 22, 18, calc(0.26 * var(--gk, 1))));
 
-  backdrop-filter: blur(44px) saturate(165%);
-  -webkit-backdrop-filter: blur(44px) saturate(165%);
+  backdrop-filter: blur(calc(12px + 32px * var(--gk, 1))) saturate(165%);
+  -webkit-backdrop-filter: blur(calc(12px + 32px * var(--gk, 1))) saturate(165%);
 
   /* Must stay inside SHADOW_ROOM (96px) on every side or the bake cuts it
      off flat at the region edge: 24 + 60 = 84px below, 60px to the sides. */
@@ -62,6 +67,16 @@ html, body {
     0 4px 14px rgba(0, 0, 0, 0.22),
     inset 0 1px 0 var(--highlight),            /* the lit top edge */
     inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* A coloured panel: the tint replaces the warm-white gradient, the dark scrim
+   underneath stays so text keeps its legibility floor. */
+.card.tinted {
+  background:
+    linear-gradient(160deg,
+      hsla(var(--gh), var(--gs), 70%, calc(0.30 * var(--gk, 1))),
+      hsla(var(--gh), var(--gs), 58%, calc(0.16 * var(--gk, 1)))),
+    linear-gradient(rgba(28, 22, 18, calc(0.26 * var(--gk, 1))), rgba(28, 22, 18, calc(0.26 * var(--gk, 1))));
 }
 
 /* ----------------------------- header ----------------------------- */
@@ -86,6 +101,7 @@ html, body {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.22em;
+  text-transform: uppercase;
   color: var(--ink-soft);
 }
 

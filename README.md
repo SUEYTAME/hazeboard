@@ -18,6 +18,10 @@ log in — no process has to be running for you to see them.
    - **Ctrl+Alt+W** (or clicking the tray icon) opens and closes the board.
    - Type into **New panel…** at the bottom to make a panel; type into a panel's
      own box to add a note to it.
+   - Or press on an empty part of the board and drag to put a new panel
+     exactly there.
+   - Right-click a panel to rename it, colour it, make it clear or solid, or
+     delete it. Right-click a note to colour just that note.
    - Press **Esc** and your panels are saved into the desktop wallpaper.
 3. Hazeboard starts with Windows so the shortcut always works. Turn that off by
    right-clicking the tray icon and unticking **Start with Windows**.

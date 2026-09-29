@@ -1,11 +1,11 @@
 /// <reference lib="dom" />
 import {
-  TINTS, TINT_KEYS,
-  type Card, type Note, type NoteStyle, type OverlayPayload, type TintKey,
+  TINTS, TINT_KEYS, GLASS_PRESETS,
+  type Card, type CardStyle, type Note, type NoteStyle, type OverlayPayload, type TintKey,
 } from '../shared/types';
 import { EDGE_INSET, pinCard } from '../shared/layout';
 import { footerFor } from '../shared/footer';
-import { buildCard, applyNoteStyle, settled } from './card';
+import { buildCard, applyNoteStyle, applyCardStyle, settled } from './card';
 
 /**
  * The live overlay: every card, absolutely positioned over a blurred capture
@@ -34,6 +34,8 @@ interface HazeboardApi {
   moveNote(noteId: string, cardId: string, index: number): Promise<Card[]>;
   detachNote(noteId: string, x: number, y: number): Promise<Card[]>;
   setNoteStyle(noteId: string, style: Partial<NoteStyle>): Promise<Card[]>;
+  setCardTitle(id: string, title: string): Promise<Card[]>;
+  setCardStyle(id: string, style: Partial<CardStyle>): Promise<Card[]>;
   close(): void;
 }
 
@@ -122,6 +124,9 @@ async function initOverlay(payload: OverlayPayload): Promise<void> {
     wired = true;
   }
   closePopover();
+  closePanelMenu();
+  closeDraft();
+  cancelDraw();
   setJiggle(false);
   render();
   if (payload.tutorial) startTutorial(payload.tutorial.hotkey);
@@ -164,7 +169,7 @@ function updateHint(): void {
     ? 'drag to arrange  ·  drop a note outside to make a panel  ·  esc to finish'
     : cards.length === 0
       ? 'type below to make your first panel  ·  esc to close'
-      : 'click to tick  ·  hold to arrange  ·  right-click for colour  ·  esc to close';
+      : 'click to tick  ·  hold to arrange  ·  drag on empty space for a new panel  ·  right-click for options  ·  esc to close';
 }
 
 function setJiggle(on: boolean): void {
@@ -199,11 +204,23 @@ function wire(): void {
   document.addEventListener('pointercancel', onPointerUp);
   field.addEventListener('click', (e) => { void onClick(e); });
 
+  // Right-click: a note gets its colour popover, the rest of a panel gets the
+  // panel menu. Text boxes keep the system menu so copy/paste still works.
   field.addEventListener('contextmenu', (e) => {
-    const row = (e.target as HTMLElement).closest<HTMLElement>('.note');
-    if (!row) return;
+    const t = e.target as HTMLElement;
+    if (t.closest('input')) return;
+    const row = t.closest<HTMLElement>('.note');
+    if (row) {
+      e.preventDefault();
+      closePanelMenu();
+      openPopover(row);
+      return;
+    }
+    const cardEl = t.closest<HTMLElement>('.card');
+    if (!cardEl) return;
     e.preventDefault();
-    openPopover(row);
+    closePopover();
+    openPanelMenu(cardEl, e.clientX, e.clientY);
   });
 
   // Per-card composer: Enter appends to that card.
@@ -231,16 +248,22 @@ function wire(): void {
   $('#coach .coach-done').addEventListener('click', endTutorial);
 
   // Clicking the wallpaper leaves jiggle mode, like tapping the home screen.
+  // Pressing it and dragging draws a new panel.
   document.body.addEventListener('pointerdown', (e) => {
     const t = e.target as HTMLElement;
-    if (t.closest('.card, #popover, #newcard, #coach')) return;
+    if (t.closest('.card, #popover, #newcard, #coach, #panelmenu, #draft')) return;
     closePopover();
+    closePanelMenu();
+    closeDraft();
     if (jiggle && !drag) setJiggle(false);
+    if (e.button === 0 && !drag) beginDraw(e.clientX, e.clientY);
   });
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     e.preventDefault();
+    if (!$('#panelmenu').hidden) { closePanelMenu(); return; }
+    if (!$('#draft').hidden) { closeDraft(); return; }
     if (!$('#popover').hidden) { closePopover(); return; }
     if (drag) { cancelDrag(); return; }
     if (jiggle) { setJiggle(false); return; }
@@ -249,6 +272,8 @@ function wire(): void {
   });
 
   wirePopover();
+  wirePanelMenu();
+  wireDraft();
 }
 
 /* ------------------------------------------------------------------ *
@@ -289,6 +314,10 @@ function onPointerDown(e: PointerEvent): void {
 
 function onPointerMove(e: PointerEvent): void {
   lastPointer = { x: e.clientX, y: e.clientY };
+  if (drawing) {
+    updateDraw(e.clientX, e.clientY);
+    return;
+  }
   if (drag) {
     updateDrag(e.clientX, e.clientY);
     return;
@@ -309,6 +338,10 @@ function onPointerMove(e: PointerEvent): void {
 }
 
 function onPointerUp(e: PointerEvent): void {
+  if (drawing) {
+    endDraw();
+    return;
+  }
   if (drag) {
     void endDrag(e.clientX, e.clientY);
     return;
@@ -553,6 +586,261 @@ async function restyle(id: string, patch: Partial<NoteStyle>, persist: boolean):
 }
 
 /* ------------------------------------------------------------------ *
+ *  Draw a panel                                                       *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Press on empty space and drag: a dashed rectangle follows the pointer and,
+ * on release, a draft panel opens at its top-left corner. Panels have one
+ * fixed width, so the rectangle chooses WHERE, not how big. A press that
+ * never moves past DRAW_SLOP stays a plain click and does nothing, so a stray
+ * click on the wallpaper cannot leave an empty panel behind.
+ */
+const DRAW_SLOP = 12;
+
+let drawing: { x0: number; y0: number; x1: number; y1: number; shown: boolean } | null = null;
+let draftAt: { x: number; y: number } | null = null;
+
+function beginDraw(x: number, y: number): void {
+  drawing = { x0: x, y0: y, x1: x, y1: y, shown: false };
+}
+
+function updateDraw(x: number, y: number): void {
+  const d = drawing;
+  if (!d) return;
+  d.x1 = x;
+  d.y1 = y;
+  if (!d.shown && Math.hypot(x - d.x0, y - d.y0) < DRAW_SLOP) return;
+  d.shown = true;
+  const r = $('#drawrect');
+  r.hidden = false;
+  r.style.left = `${Math.min(d.x0, d.x1)}px`;
+  r.style.top = `${Math.min(d.y0, d.y1)}px`;
+  r.style.width = `${Math.abs(d.x1 - d.x0)}px`;
+  r.style.height = `${Math.abs(d.y1 - d.y0)}px`;
+}
+
+function endDraw(): void {
+  const d = drawing;
+  cancelDraw();
+  if (!d?.shown) return;
+  openDraft(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1));
+}
+
+function cancelDraw(): void {
+  drawing = null;
+  $('#drawrect').hidden = true;
+}
+
+function openDraft(x: number, y: number): void {
+  const el = $('#draft');
+  el.style.width = `${cardW}px`;
+  el.hidden = false;
+  // Keep the whole draft on screen; the stored position is clamped the same
+  // way by pinCard when the panel is drawn for real.
+  const left = Math.max(EDGE_INSET, Math.min(x, W - cardW - EDGE_INSET));
+  const top = Math.max(EDGE_INSET, Math.min(y, H - el.offsetHeight - EDGE_INSET));
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+  draftAt = { x: left, y: top };
+  const input = el.querySelector<HTMLInputElement>('input')!;
+  input.value = '';
+  input.focus();
+}
+
+function closeDraft(): void {
+  $('#draft').hidden = true;
+  draftAt = null;
+}
+
+function wireDraft(): void {
+  const input = $<HTMLInputElement>('#draft input');
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      closeDraft();
+      return;
+    }
+    if (e.key !== 'Enter') return;
+    const text = input.value.trim();
+    const at = draftAt;
+    if (!text || !at) return;
+    closeDraft();
+    void apply(api().addCard(text, at.x / W, at.y / H)).then(() => { tutorialEvent('addCard'); });
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ *  Panel menu (right-click a panel)                                   *
+ * ------------------------------------------------------------------ */
+
+let menuCardId: string | null = null;
+/** Delete takes two clicks: a panel and all its notes cannot be brought back. */
+let deleteArmed = false;
+
+function cardByIdLocal(id: string): Card | null {
+  return cards.find((c) => c.id === id) ?? null;
+}
+
+function cardEl(id: string): HTMLElement | null {
+  return $('#field').querySelector<HTMLElement>(`.card[data-id="${id}"]`);
+}
+
+function wirePanelMenu(): void {
+  const menu = $('#panelmenu');
+
+  const swatches = menu.querySelector<HTMLElement>('.pm-swatches')!;
+  const none = document.createElement('button');
+  none.type = 'button';
+  none.className = 'swatch none';
+  none.dataset.tint = '';
+  none.title = 'no colour';
+  swatches.appendChild(none);
+  for (const key of TINT_KEYS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch';
+    b.dataset.tint = key;
+    b.title = key;
+    b.style.setProperty('--sh', String(TINTS[key].h));
+    b.style.setProperty('--ss', `${TINTS[key].s}%`);
+    swatches.appendChild(b);
+  }
+  swatches.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('.swatch');
+    if (!b || b.dataset.tint === undefined) return;
+    const tint = b.dataset.tint === '' ? null : (b.dataset.tint as TintKey);
+    void restylePanel({ tint }, true);
+  });
+
+  const presets = menu.querySelector<HTMLElement>('.pm-presets')!;
+  for (const p of GLASS_PRESETS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = p.label;
+    b.dataset.glass = String(p.glass);
+    presets.appendChild(b);
+  }
+  presets.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('button');
+    if (!b?.dataset.glass) return;
+    void restylePanel({ glass: Number(b.dataset.glass) }, true);
+  });
+
+  const slider = menu.querySelector<HTMLInputElement>('.pm-glass')!;
+  // Preview every tick, persist once on release (same as the note slider).
+  slider.addEventListener('input', () => { void restylePanel({ glass: Number(slider.value) }, false); });
+  slider.addEventListener('change', () => { void restylePanel({ glass: Number(slider.value) }, true); });
+
+  menu.querySelector<HTMLElement>('.pm-rename')!.addEventListener('click', () => {
+    const id = menuCardId;
+    closePanelMenu();
+    if (id) startRename(id);
+  });
+
+  const del = menu.querySelector<HTMLElement>('.pm-delete')!;
+  del.addEventListener('click', () => {
+    const id = menuCardId;
+    if (!id) return;
+    if (!deleteArmed) {
+      deleteArmed = true;
+      del.classList.add('armed');
+      del.textContent = 'Click again to delete';
+      return;
+    }
+    closePanelMenu();
+    void apply(api().removeCard(id));
+  });
+}
+
+function openPanelMenu(el: HTMLElement, x: number, y: number): void {
+  const id = el.dataset.id;
+  const card = id ? cardByIdLocal(id) : null;
+  if (!id || !card) return;
+  menuCardId = id;
+  deleteArmed = false;
+
+  const menu = $('#panelmenu');
+  const del = menu.querySelector<HTMLElement>('.pm-delete')!;
+  del.classList.remove('armed');
+  del.textContent = 'Delete panel';
+  syncPanelMenu(card.style);
+
+  menu.hidden = false;
+  const mw = menu.offsetWidth;
+  const mh = menu.offsetHeight;
+  const left = x + mw + EDGE_INSET > W ? x - mw : x;
+  const top = y + mh + EDGE_INSET > H ? H - EDGE_INSET - mh : y;
+  menu.style.left = `${Math.max(EDGE_INSET, left)}px`;
+  menu.style.top = `${Math.max(EDGE_INSET, top)}px`;
+}
+
+function closePanelMenu(): void {
+  $('#panelmenu').hidden = true;
+  menuCardId = null;
+  deleteArmed = false;
+}
+
+function syncPanelMenu(style: CardStyle): void {
+  const menu = $('#panelmenu');
+  menu.querySelectorAll<HTMLElement>('.pm-swatches .swatch').forEach((s) => {
+    s.classList.toggle('active', (s.dataset.tint || null) === style.tint);
+  });
+  menu.querySelectorAll<HTMLElement>('.pm-presets button').forEach((b) => {
+    b.classList.toggle('active', Math.abs(Number(b.dataset.glass) - style.glass) < 0.005);
+  });
+  menu.querySelector<HTMLInputElement>('.pm-glass')!.value = String(style.glass);
+}
+
+/** Restyle the panel in place (no re-render, so the menu stays open). */
+async function restylePanel(patch: Partial<CardStyle>, persist: boolean): Promise<void> {
+  const id = menuCardId;
+  const card = id ? cardByIdLocal(id) : null;
+  if (!id || !card) return;
+  card.style = { ...card.style, ...patch };
+  const el = cardEl(id);
+  if (el) applyCardStyle(el, card.style);
+  syncPanelMenu(card.style);
+  if (persist) cards = await api().setCardStyle(id, patch);
+}
+
+/** Swap the header's title for a text box; Enter or clicking away saves. */
+function startRename(id: string): void {
+  const el = cardEl(id);
+  const card = cardByIdLocal(id);
+  const brand = el?.querySelector<HTMLElement>('header .brand');
+  if (!el || !card || !brand) return;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'rename';
+  input.value = card.title ?? '';
+  input.placeholder = 'Panel name';
+  input.maxLength = 40;
+  input.spellcheck = false;
+  brand.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const commit = (): void => {
+    if (done) return;
+    done = true;
+    void apply(api().setCardTitle(id, input.value));
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); return; }
+    if (e.key === 'Escape') {
+      // Cancel the rename only; do not let Esc go on to close the board.
+      e.stopPropagation();
+      done = true;
+      render();
+    }
+  });
+  input.addEventListener('blur', commit);
+}
+
+/* ------------------------------------------------------------------ *
  *  Tutorial                                                           *
  * ------------------------------------------------------------------ */
 
@@ -588,8 +876,8 @@ const STEPS: TutorialStep[] = [
   {
     event: 'addCard',
     title: 'Make your own panel',
-    body: () => 'Type a first note in "New panel" at the bottom and press Enter. '
-      + 'Each panel is its own list: today, groceries, ideas...',
+    body: () => 'Type a first note in "New panel" at the bottom and press Enter, or drag on an '
+      + 'empty spot to put a panel exactly there. Each panel is its own list: today, groceries, ideas...',
     target: () => document.querySelector<HTMLElement>('#newcard input'),
   },
   {

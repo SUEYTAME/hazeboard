@@ -33,6 +33,23 @@
     </div>
   </div>
 
+  <!-- Drag on empty space: the rectangle marks where the new panel goes. -->
+  <div id="drawrect" hidden><span>Release to put a panel here</span></div>
+  <div id="draft" hidden>
+    <input type="text" placeholder="First note for this panel..." autocomplete="off" spellcheck="false" />
+  </div>
+
+  <!-- Right-click a panel. -->
+  <div id="panelmenu" hidden>
+    <button type="button" class="pm-rename">Rename</button>
+    <div class="pm-label">Colour</div>
+    <div class="pm-swatches"></div>
+    <div class="pm-label">Glass</div>
+    <div class="pm-presets"></div>
+    <input type="range" class="pm-glass" min="0" max="1" step="0.01" aria-label="Glass: see-through to solid" />
+    <button type="button" class="pm-delete">Delete panel</button>
+  </div>
+
   <div id="popover" hidden>
     <div class="swatches"></div>
     <label class="intensity">

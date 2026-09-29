@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as store from './store';
 import { composeAndApply } from './compose';
 import { callPage, CARD_W } from './render';
-import { DEFAULT_BACKDROP, type Card, type NoteStyle, type OverlayPayload } from '../shared/types';
+import { DEFAULT_BACKDROP, type Card, type CardStyle, type NoteStyle, type OverlayPayload } from '../shared/types';
 
 const HOTKEY = 'Control+Alt+W';
 const HOTKEY_LABEL = HOTKEY.replace(/Control/, 'Ctrl');
@@ -257,6 +257,10 @@ function wireIpc(): void {
     mutate(() => store.moveNote(noteId, cardId, index)));
   ipcMain.handle('gb:detachNote', (_e, noteId: string, x: number, y: number) =>
     mutate(() => store.detachNote(noteId, x, y)));
+  ipcMain.handle('gb:setCardTitle', (_e, id: string, title: string) =>
+    mutate(() => store.setCardTitle(id, title)));
+  ipcMain.handle('gb:setCardStyle', (_e, id: string, style: Partial<CardStyle>) =>
+    mutate(() => store.setCardStyle(id, style)));
   ipcMain.handle('gb:setNoteStyle', (_e, noteId: string, style: Partial<NoteStyle>) =>
     mutate(() => store.setNoteStyle(noteId, style)));
   ipcMain.on('gb:close', () => { overlay?.hide(); });

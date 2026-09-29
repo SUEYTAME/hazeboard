@@ -1,6 +1,6 @@
 {
   "name": "hazeboard",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Glassmorphic whiteboard baked into your Windows desktop wallpaper",
   "license": "MIT",

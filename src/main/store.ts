@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import {
-  STATE_VERSION, DEFAULT_STYLE, normalizeStyle,
-  type BoardState, type Card, type Note, type NoteStyle,
+  STATE_VERSION, DEFAULT_STYLE, normalizeStyle, DEFAULT_CARD_STYLE, normalizeCardStyle,
+  type BoardState, type Card, type CardStyle, type Note, type NoteStyle,
 } from '../shared/types';
 
 export function dataDir(): string {
@@ -91,6 +91,7 @@ function reviveCard(raw: unknown): Card | null {
     x: typeof c.x === 'number' ? clamp01(c.x) : MIGRATED_X,
     y: typeof c.y === 'number' ? clamp01(c.y) : MIGRATED_Y,
     createdAt: typeof c.createdAt === 'string' ? c.createdAt : new Date().toISOString(),
+    style: normalizeCardStyle(c.style),
   };
 }
 
@@ -123,6 +124,7 @@ function migrate(parsed: LegacyState): BoardState {
         x: MIGRATED_X,
         y: MIGRATED_Y,
         createdAt: new Date().toISOString(),
+        style: { ...DEFAULT_CARD_STYLE },
       }]
     : [];
 
@@ -245,6 +247,7 @@ export function addCard(text: string, at?: { x: number; y: number }): Card {
     x: clamp01(pos.x),
     y: clamp01(pos.y),
     createdAt: new Date().toISOString(),
+    style: { ...DEFAULT_CARD_STYLE },
   };
   state.cards.push(card);
   save(state);
@@ -305,10 +308,20 @@ export function hasBoard(): boolean {
   return fs.existsSync(statePath());
 }
 
+export function setCardStyle(idPrefix: string, patch: Partial<CardStyle>): Card {
+  const state = load();
+  const card = resolveCard(state, idPrefix);
+  card.style = normalizeCardStyle({ ...card.style, ...patch });
+  save(state);
+  return card;
+}
+
+/** Blank or whitespace-only clears the title, so the header shows the brand again. */
 export function setCardTitle(idPrefix: string, title: string | null): Card {
   const state = load();
   const card = resolveCard(state, idPrefix);
-  card.title = title;
+  const trimmed = title?.trim() ?? '';
+  card.title = trimmed ? trimmed : null;
   save(state);
   return card;
 }
@@ -366,6 +379,7 @@ export function detachNote(noteIdPrefix: string, x: number, y: number): Card {
     x: clamp01(x),
     y: clamp01(y),
     createdAt: new Date().toISOString(),
+    style: { ...DEFAULT_CARD_STYLE },
   };
   state.cards.push(card);
 

@@ -1,5 +1,5 @@
 /// <reference lib="dom" />
-import { TINTS, type Card, type Note, type NoteStyle } from '../shared/types';
+import { TINTS, DEFAULT_GLASS, type Card, type CardStyle, type Note, type NoteStyle } from '../shared/types';
 
 /**
  * The card DOM, shared by the wallpaper bake and the live overlay.
@@ -17,6 +17,7 @@ export function buildCard(card: Card, opts: CardOptions): HTMLElement {
   const el = document.createElement('section');
   el.className = 'card';
   el.dataset.id = card.id;
+  applyCardStyle(el, card.style);
 
   const header = document.createElement('header');
   const brand = document.createElement('span');
@@ -98,6 +99,21 @@ export function applyNoteStyle(el: HTMLElement, style: NoteStyle): void {
   el.style.setProperty('--th', String(tint.h));
   el.style.setProperty('--ts', `${tint.s}%`);
   el.style.setProperty('--ta', String(style.intensity));
+}
+
+/**
+ * Per-panel glass as custom properties, for the same reason as applyNoteStyle:
+ * card.css derives every layer from them, and the overlay can preview a change
+ * on the live element without rebuilding it.
+ */
+export function applyCardStyle(el: HTMLElement, style: CardStyle): void {
+  el.style.setProperty('--gk', String(style.glass / DEFAULT_GLASS));
+  el.classList.toggle('tinted', style.tint !== null);
+  if (style.tint) {
+    const tint = TINTS[style.tint];
+    el.style.setProperty('--gh', String(tint.h));
+    el.style.setProperty('--gs', `${tint.s}%`);
+  }
 }
 
 function removeButton(label: string, className: string): HTMLButtonElement {

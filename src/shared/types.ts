@@ -48,6 +48,35 @@ export function normalizeStyle(s: Partial<NoteStyle> | undefined): NoteStyle {
   return { tint, intensity: Math.min(1, Math.max(0, raw)) };
 }
 
+/**
+ * Per-panel glass. `tint` colours the glass itself (null = the warm neutral
+ * glass); `glass` is 0..1 from see-through to solid. Notes keep their own
+ * NoteStyle on top of this.
+ */
+export interface CardStyle {
+  tint: TintKey | null;
+  glass: number;
+}
+
+/** 0.35 reproduces the original look exactly: card.css scales from it. */
+export const DEFAULT_GLASS = 0.35;
+
+export const DEFAULT_CARD_STYLE: CardStyle = { tint: null, glass: DEFAULT_GLASS };
+
+/** The three one-click choices in the panel menu. */
+export const GLASS_PRESETS = [
+  { label: 'Clear', glass: 0.1 },
+  { label: 'Frosted', glass: DEFAULT_GLASS },
+  { label: 'Solid', glass: 0.9 },
+] as const;
+
+/** Untrusted input from disk: unknown tints become no tint, glass is clamped. */
+export function normalizeCardStyle(s: Partial<CardStyle> | undefined): CardStyle {
+  const tint = typeof s?.tint === 'string' && s.tint in TINTS ? s.tint : null;
+  const raw = typeof s?.glass === 'number' ? s.glass : DEFAULT_GLASS;
+  return { tint, glass: Math.min(1, Math.max(0, raw)) };
+}
+
 /* ------------------------------------------------------------------ *
  *  Board                                                              *
  * ------------------------------------------------------------------ */
@@ -77,6 +106,8 @@ export interface Card {
   x: number;
   y: number;
   createdAt: string;
+  /** Absent in boards saved before 0.3.0; revived as DEFAULT_CARD_STYLE. */
+  style: CardStyle;
 }
 
 export const STATE_VERSION = 2;

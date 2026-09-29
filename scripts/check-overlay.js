@@ -77,6 +77,8 @@ async function main() {
   ipcMain.handle('gb:moveNote', (_e, n, c, i) => mutate(() => store.moveNote(n, c, i)));
   ipcMain.handle('gb:detachNote', (_e, n, x, y) => mutate(() => store.detachNote(n, x, y)));
   ipcMain.handle('gb:setNoteStyle', (_e, n, s) => mutate(() => store.setNoteStyle(n, s)));
+  ipcMain.handle('gb:setCardTitle', (_e, id, t) => mutate(() => store.setCardTitle(id, t)));
+  ipcMain.handle('gb:setCardStyle', (_e, id, s) => mutate(() => store.setCardStyle(id, s)));
   ipcMain.on('gb:close', () => { closed = true; });
 
   const display = screen.getPrimaryDisplay();
@@ -239,7 +241,7 @@ async function main() {
   await run(`window.__click('.note[data-id="n0000002"] .tint')`);
   await sleep(60);
   check(await run(`!document.getElementById('popover').hidden`), 'tint popover opened');
-  await run(`window.__click('.swatch[data-tint="pink"]')`);
+  await run(`window.__click('#popover .swatch[data-tint="pink"]')`);
   await sleep(200);
   await shot('overlay-popover.png');
   check(cardById('card0001').notes.find((n) => n.id === 'n0000002').style.tint === 'pink', 'swatch persisted a tint');
@@ -317,7 +319,7 @@ async function main() {
     new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); return 1; })()`);
   await sleep(60);
   check((await coach()).step === 'Step 5 of 6', 'opening the colour popover alone does not advance');
-  await run(`window.__click('.swatch[data-tint="green"]')`);
+  await run(`window.__click('#popover .swatch[data-tint="green"]')`);
   await sleep(250);
   c = await coach();
   check(c.step === 'Step 6 of 6' && c.target === 0, `picking a colour advanced to step 6 (${c.step})`);
@@ -340,6 +342,128 @@ async function main() {
   //     A normal opening never shows it.
   await run(`window.__initOverlay(${payload(cards(), null)})`);
   check((await coach()).hidden, 'normal opening has no tutorial');
+
+  // 11. Part B: draw a panel, the panel menu, rename, glass, delete.
+  await run(`window.__initOverlay(${payload(cards(), null)})`);
+  closed = false;
+  // An empty spot: nothing interactive under it.
+  const [ex, ey] = await run(`(() => {
+    for (let y = 120; y < ${H} - 200; y += 40) for (let x = 60; x < ${W} - 700; x += 40) {
+      const t = document.elementFromPoint(x, y);
+      if (t && !t.closest('.card, #newcard, #coach, #hint, #popover, #panelmenu')
+          && !document.elementFromPoint(x + 260, y + 160)?.closest('.card, #newcard, #coach')) return [x, y];
+    }
+    throw new Error('no empty spot found');
+  })()`);
+  const before11 = store.load().cards.length;
+
+  //     A plain click on the wallpaper must not start a panel.
+  await run(`(window.__ev('pointerdown', ${ex}, ${ey}), window.__ev('pointerup', ${ex}, ${ey}, true), 1)`);
+  check(await run(`document.getElementById('draft').hidden && document.getElementById('drawrect').hidden`),
+    'a plain click on empty space does not open a draft');
+
+  //     Press, drag, release: rectangle, then a draft at its corner.
+  await run(`window.__ev('pointerdown', ${ex}, ${ey})`);
+  await run(`window.__ev('pointermove', ${ex + 260}, ${ey + 160}, true)`);
+  check(await run(`!document.getElementById('drawrect').hidden`), 'dragging on empty space shows the rectangle');
+  await shot('panel-draw.png');
+  await run(`window.__ev('pointerup', ${ex + 260}, ${ey + 160}, true)`);
+  await sleep(60);
+  check(await run(`!document.getElementById('draft').hidden && document.activeElement === document.querySelector('#draft input')`),
+    'release opens a draft panel with the cursor in it');
+
+  //     Esc in the draft cancels it without closing the board.
+  await run(`(() => { document.querySelector('#draft input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1; })()`);
+  check(await run(`document.getElementById('draft').hidden`) && !closed, 'esc cancels the draft and keeps the board open');
+
+  //     Draw again and create it.
+  await run(`window.__ev('pointerdown', ${ex}, ${ey})`);
+  await run(`window.__ev('pointermove', ${ex + 260}, ${ey + 160}, true)`);
+  await run(`window.__ev('pointerup', ${ex + 260}, ${ey + 160}, true)`);
+  await sleep(60);
+  await run(`(() => { const i = document.querySelector('#draft input');
+    i.value = 'Drawn here'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);
+  await sleep(250);
+  const drawn = store.load().cards.find((c) => c.notes.some((n) => n.text === 'Drawn here'));
+  check(store.load().cards.length === before11 + 1 && !!drawn, 'enter in the draft made a panel');
+  check(!!drawn && Math.abs(drawn.x * W - ex) <= 2 && Math.abs(drawn.y * H - ey) <= 2,
+    `drawn panel sits at the rectangle's corner (${drawn ? `${(drawn.x * W).toFixed(0)},${(drawn.y * H).toFixed(0)}` : 'none'} vs ${ex},${ey})`);
+
+  //     Right-click: note -> colour popover; panel -> panel menu.
+  const did = drawn.id;
+  await run(`(() => { document.querySelector('.card[data-id="${did}"] .note').dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 })); return 1; })()`);
+  check(await run(`!document.getElementById('popover').hidden && document.getElementById('panelmenu').hidden`),
+    'right-click on a note still opens the note colours');
+  const [px, py] = await run(`window.__center('.card[data-id="${did}"] > header .brand')`);
+  await run(`(() => { document.querySelector('.card[data-id="${did}"] > header .brand').dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: ${px}, clientY: ${py} })); return 1; })()`);
+  check(await run(`!document.getElementById('panelmenu').hidden && document.getElementById('popover').hidden`),
+    'right-click on a panel opens the panel menu');
+
+  //     Colour and glass.
+  await run(`window.__click('#panelmenu .swatch[data-tint="blue"]')`);
+  await sleep(200);
+  await run(`window.__click('#panelmenu .pm-presets button[data-glass="0.9"]')`);
+  await sleep(200);
+  const styled = cardById(did).style;
+  check(styled.tint === 'blue' && styled.glass === 0.9, `panel colour and Solid glass saved (${JSON.stringify(styled)})`);
+  const live = await run(`(() => { const el = document.querySelector('.card[data-id="${did}"]');
+    return { tinted: el.classList.contains('tinted'), gk: el.style.getPropertyValue('--gk') }; })()`);
+  check(live.tinted && Math.abs(Number(live.gk) - 0.9 / 0.35) < 0.001, `panel restyled live (${JSON.stringify(live)})`);
+  await shot('panel-menu.png');
+  await run(`window.__click('#panelmenu .swatch.none')`);
+  await sleep(200);
+  check(cardById(did).style.tint === null, '"no colour" clears the panel tint');
+
+  //     Rename: Enter saves, blank clears, Esc cancels without closing the board.
+  await run(`window.__click('#panelmenu .pm-rename')`);
+  check(await run(`!!document.querySelector('.card[data-id="${did}"] header input.rename') && document.getElementById('panelmenu').hidden`),
+    'rename puts a text box in the header');
+  await run(`(() => { const i = document.querySelector('.card[data-id="${did}"] header input.rename');
+    i.value = '  Groceries  '; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);
+  await sleep(250);
+  check(cardById(did).title === 'Groceries', `rename saved a trimmed title (${JSON.stringify(cardById(did).title)})`);
+
+  const renameAgain = async () => {
+    const [bx2, by2] = await run(`window.__center('.card[data-id="${did}"] > header .brand')`);
+    await run(`(() => { document.querySelector('.card[data-id="${did}"] > header .brand').dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: ${bx2}, clientY: ${by2} })); return 1; })()`);
+    await run(`window.__click('#panelmenu .pm-rename')`);
+  };
+  await renameAgain();
+  await run(`(() => { const i = document.querySelector('.card[data-id="${did}"] header input.rename');
+    i.value = 'Should not stick'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return 1; })()`);
+  await sleep(150);
+  check(cardById(did).title === 'Groceries' && !closed, 'esc cancels a rename and keeps the board open');
+  await renameAgain();
+  await run(`(() => { const i = document.querySelector('.card[data-id="${did}"] header input.rename');
+    i.value = '   '; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);
+  await sleep(250);
+  check(cardById(did).title === null, 'a blank name clears the title');
+
+  //     Delete needs two clicks.
+  const [dx2, dy2] = await run(`window.__center('.card[data-id="${did}"] > header .brand')`);
+  await run(`(() => { document.querySelector('.card[data-id="${did}"] > header .brand').dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: ${dx2}, clientY: ${dy2} })); return 1; })()`);
+  await run(`window.__click('#panelmenu .pm-delete')`);
+  await sleep(150);
+  check(!!cardById(did) && await run(`document.querySelector('#panelmenu .pm-delete').classList.contains('armed')`),
+    'first delete click only arms it');
+  await run(`window.__click('#panelmenu .pm-delete')`);
+  await sleep(250);
+  check(!cardById(did), 'second delete click removed the panel');
+
+  //     Drawing a panel also completes tutorial step 3.
+  await run(`window.__initOverlay(${payload([], { hotkey: 'Ctrl+Alt+W' })})`);
+  await run(`window.__ev('pointerdown', ${ex}, ${ey})`);
+  await run(`window.__ev('pointermove', ${ex + 260}, ${ey + 160}, true)`);
+  await run(`window.__ev('pointerup', ${ex + 260}, ${ey + 160}, true)`);
+  await sleep(60);
+  await run(`(() => { const i = document.querySelector('#draft input');
+    i.value = 'Tutorial by drawing'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);
+  await sleep(250);
+  check((await coach()).step === 'Step 4 of 6', 'drawing a panel completes tutorial step 3');
 
   console.log('console errors:', errors.length ? errors : 'none');
   console.log(`${failures.length} failure(s); wrote tmp/overlay-*.png`);
